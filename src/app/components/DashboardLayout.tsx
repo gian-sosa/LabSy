@@ -1,0 +1,252 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  BookOpen,
+  Users,
+  Calendar,
+  GraduationCap,
+  LogOut,
+  Shield,
+  Sparkles,
+  Sun,
+  Moon
+} from "lucide-react";
+
+interface User {
+  name: string;
+  email: string;
+  role: string;
+}
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Sync state with localStorage
+  useEffect(() => {
+    const storedTheme = localStorage.getItem("labsy_theme");
+    if (storedTheme) {
+      setIsDarkMode(storedTheme === "dark");
+    }
+    
+    const storedUser = localStorage.getItem("labsy_user");
+    if (!storedUser) {
+      router.push("/");
+    } else {
+      setCurrentUser(JSON.parse(storedUser));
+    }
+    setMounted(true);
+  }, [router]);
+
+  const toggleTheme = () => {
+    const nextTheme = !isDarkMode;
+    setIsDarkMode(nextTheme);
+    localStorage.setItem("labsy_theme", nextTheme ? "dark" : "light");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("labsy_user");
+    router.push("/");
+  };
+
+  const switchRole = (role: "estudiante" | "docente" | "admin") => {
+    if (!currentUser) return;
+    let name = "Estudiante Sistemas";
+    let email = "estudiante@sistemas.edu.pe";
+    if (role === "admin") {
+      name = "Administrador TI";
+      email = "admin@sistemas.edu.pe";
+    } else if (role === "docente") {
+      name = "Docente Principal";
+      email = "docente@sistemas.edu.pe";
+    }
+    const updatedUser = { name, email, role };
+    setCurrentUser(updatedUser);
+    localStorage.setItem("labsy_user", JSON.stringify(updatedUser));
+    // Trigger storage event so other pages know
+    window.dispatchEvent(new Event("storage"));
+  };
+
+  if (!mounted || !currentUser) {
+    return null;
+  }
+
+  return (
+    <div className={`min-h-screen font-sans flex flex-col relative overflow-hidden transition-colors duration-300 ${
+      isDarkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-55 bg-slate-50 text-slate-900"
+    }`}>
+      {/* Background radial glow */}
+      <div className={`absolute top-0 left-0 w-full h-[350px] pointer-events-none ${
+        isDarkMode 
+          ? "bg-gradient-to-b from-amber-950/10 via-slate-950/0 to-transparent" 
+          : "bg-gradient-to-b from-amber-500/5 via-slate-55/0 to-transparent"
+      }`} />
+
+      {/* Demo role switch bar */}
+      <div className={`border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs z-20 transition-colors ${
+        isDarkMode ? "bg-slate-900 border-slate-800" : "bg-amber-500/10 border-amber-500/20 text-slate-850"
+      }`}>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+          <span className="font-semibold">Simulador de Roles (Prototipo):</span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => switchRole("estudiante")}
+            className={`px-3 py-1 rounded-md transition-all ${
+              currentUser.role === "estudiante" ? "bg-amber-500 text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            Estudiante
+          </button>
+          <button
+            onClick={() => switchRole("docente")}
+            className={`px-3 py-1 rounded-md transition-all ${
+              currentUser.role === "docente" ? "bg-amber-500 text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            Docente
+          </button>
+          <button
+            onClick={() => switchRole("admin")}
+            className={`px-3 py-1 rounded-md transition-all ${
+              currentUser.role === "admin" ? "bg-amber-500 text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            Administrador
+          </button>
+        </div>
+      </div>
+
+      {/* Header */}
+      <header className={`border-b sticky top-0 z-10 px-6 py-4 flex items-center justify-between transition-colors ${
+        isDarkMode ? "bg-slate-950/80 border-slate-900 backdrop-blur-md" : "bg-white/80 border-slate-200 backdrop-blur-md"
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
+            <GraduationCap className="h-6 w-6 text-slate-950 stroke-[2]" />
+          </div>
+          <div>
+            <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
+              Sistemas Hub
+            </h1>
+            <p className={`text-[10px] ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>ESCUELA DE INGENIERÍA DE SISTEMAS</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={toggleTheme}
+            className={`p-2 rounded-xl border transition-all ${
+              isDarkMode ? "bg-slate-900 border-slate-850 hover:bg-slate-800 text-yellow-400" : "bg-slate-100 border-slate-200 hover:bg-slate-250 text-slate-755"
+            }`}
+            title="Cambiar Tema"
+          >
+            {isDarkMode ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+          </button>
+
+          <div className="hidden md:flex items-center gap-3 text-right">
+            <div>
+              <p className="text-sm font-semibold">{currentUser.name}</p>
+              <div className="flex items-center gap-1.5 justify-end">
+                {currentUser.role === "admin" && <Shield className="h-3 w-3 text-red-500" />}
+                {currentUser.role === "docente" && <Sparkles className="h-3 w-3 text-amber-500" />}
+                <span className={`text-[10px] uppercase font-bold tracking-wider ${
+                  currentUser.role === "admin" ? "text-red-400" : currentUser.role === "docente" ? "text-amber-450" : "text-amber-550"
+                }`}>
+                  {currentUser.role}
+                </span>
+              </div>
+            </div>
+            <div className={`h-9 w-9 rounded-full flex items-center justify-center border text-sm font-bold ${
+              isDarkMode ? "bg-slate-900 border-slate-800 text-amber-400" : "bg-slate-100 border-slate-200 text-slate-800"
+            }`}>
+              {currentUser.name.charAt(0)}
+            </div>
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <div className="max-w-7xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col md:flex-row gap-8 flex-1 z-10">
+        {/* Left Sidebar */}
+        <aside className="w-full md:w-64 shrink-0 space-y-6">
+          <div className={`border rounded-2xl p-5 space-y-4 ${
+            isDarkMode ? "bg-slate-900/60 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
+          }`}>
+            <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Menú Principal</h3>
+            <nav className="space-y-1">
+              <Link
+                href="/inicio"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/inicio"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-650 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                Foro de Estudiantes
+              </Link>
+              <Link
+                href="/material"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/material"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-650 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <BookOpen className="h-4 w-4" />
+                Material Académico
+              </Link>
+              <Link
+                href="/laboratorio"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/laboratorio"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-655 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <Calendar className="h-4 w-4" />
+                Laboratorio
+                <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+              </Link>
+            </nav>
+          </div>
+        </aside>
+
+        {/* Dynamic content rendering */}
+        <main className="flex-1 min-w-0">
+          {children}
+        </main>
+      </div>
+
+      {/* Footer */}
+      <footer className={`border-t py-6 text-center text-xs z-10 ${
+        isDarkMode ? "border-slate-900 text-slate-600" : "border-slate-250 text-slate-500"
+      }`}>
+        <p>&copy; {new Date().getFullYear()} Escuela de Ingeniería de Sistemas. Todos los derechos reservados.</p>
+      </footer>
+    </div>
+  );
+}
