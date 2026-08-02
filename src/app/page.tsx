@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { GraduationCap, AlertCircle, Sun, Moon } from "lucide-react";
+import { Analytics } from "@vercel/analytics/next"
 
 export default function LoginPage() {
   const router = useRouter();
@@ -58,10 +59,10 @@ export default function LoginPage() {
       isDarkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
     }`}>
       {/* Background Lights */}
-      <div className={`absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none transition-all ${
+      <div className={`absolute top-[-20%] left-[-10%] w-125 h-125 rounded-full blur-[120px] pointer-events-none transition-all ${
         isDarkMode ? "bg-amber-900/15" : "bg-amber-200/30"
       }`} />
-      <div className={`absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none transition-all ${
+      <div className={`absolute bottom-[-20%] right-[-10%] w-125 h-125 rounded-full blur-[120px] pointer-events-none transition-all ${
         isDarkMode ? "bg-slate-800/20" : "bg-slate-200/40"
       }`} />
       
@@ -79,10 +80,10 @@ export default function LoginPage() {
         isDarkMode ? "bg-slate-900/80 border-slate-800" : "bg-white border-slate-200"
       }`}>
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="h-16 w-16 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mb-4">
-            <GraduationCap className="h-9 w-9 text-slate-950 stroke-[2]" />
+          <div className="h-16 w-16 bg-linear-to-tr from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mb-4">
+            <GraduationCap className="h-9 w-9 text-slate-950 stroke-2" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold tracking-tight gradient-linear-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
             LabSy
           </h1>
           <p className={`text-sm mt-2 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
