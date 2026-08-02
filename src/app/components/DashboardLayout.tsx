@@ -135,7 +135,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div>
             <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
-              Sistemas Hub
+              LabSy
             </h1>
             <p className={`text-[10px] ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>ESCUELA DE INGENIERÍA DE SISTEMAS</p>
           </div>

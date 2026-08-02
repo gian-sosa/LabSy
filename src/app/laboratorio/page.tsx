@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { Plus, Edit2 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface Lab {
   id: number;
@@ -17,6 +18,19 @@ interface Lab {
   vacancies: number;
 }
 
+interface LabClassRow {
+  id: number;
+  lab_name: string;
+  course: string;
+  day: string;
+  start_hour: number;
+  duration_hours: number;
+  room: string;
+  teacher: string;
+  capacity: number;
+  vacancies: number;
+}
+
 const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 const HOURS_RANGE = Array.from({ length: 14 }, (_, i) => i + 7); // 7 AM to 8 PM (20:00)
 const SCHOOL_LABS = [
@@ -27,26 +41,46 @@ const SCHOOL_LABS = [
   { name: "Laboratorio 5", room: "H-205" },
 ] as const;
 const COURSE_POOL = [
-  "Programación Web",
-  "Bases de Datos II",
-  "Redes I",
-  "Arquitectura de Software",
-  "Inteligencia Artificial",
-  "Ciberseguridad Aplicada",
-  "DevOps",
-  "Cloud Computing",
-  "Sistemas Operativos",
-  "Gestión de Proyectos TI",
-  "QA y Testing",
-  "Minería de Datos",
+  "Estadística Aplicada",
+  "Gestión de Datos de Información",
+  "Estructura de Datos Fundamentales y Algoritmos",
+  "Métodos Numéricos",
+  "Pruebas de Aseguramiento de Calidad de Software",
+  "Redes de Datos",
+  "Modelamiento de Datos",
+  "Diseño de Software",
+  "Lenguaje de Programación",
+  "Gestión de Riesgos y Seguridad de TI",
+  "Gestión de Datos e Información",
+  "Comercio Electrónico",
+  "Fundamentos de Sistemas de Información",
+  "Sistemas Distribuidos",
+  "Gestión de Procesos de Negocios",
+  "Sistemas Eléctricos y Electrónicos",
 ];
 const TEACHER_POOL = [
-  "MSc. Julio Torres",
-  "Dra. Martha Ruiz",
-  "Ing. Carlos Mendoza",
-  "Ing. David Asencios",
-  "MSc. Elena Prado",
-  "Ing. Diego Rivas",
+  "TAPIA CALDERÓN, Guillermo",
+  "HUARCAYA VICENTE, Gladys",
+  "MONTES DE OCA ALCARRÁZ, José Ciro",
+  "MENESES YARANGA, Óscar",
+  "ZAPATA CASAVERDE, Richard",
+  "PERALTA SOTOMAYOR, Karel",
+  "PORTILLO QUISPE, Javier",
+  "QUISPE BAUTISTA, Pelayo",
+  "VILA HUAMÁN, Eloy",
+  "CARREÑO GAMARRA, Juan Carlos",
+  "AYALA FARFÁN, Jhimy",
+  "MENESES CCONISLLA, Yudith",
+  "MARTÍNEZ CÓRDOVA, Celia Edith",
+  "GUEVARA MOROTE, Edith",
+  "QUISPE YAULI, Grover",
+  "RUIZ HUAMAN, Luis Adderlin",
+  "YAURI VIDALÓN, José Elías",
+  "JANAMPA PATILLA, Hubner",
+  "TERRAZA HUAMÁN, Edem Jersson",
+  "FERNÁNDEZ JERÍ, Elvira",
+  "LEZAMA CUELLAR, Christian",
+  "LUQUE MENDIETA, Fiorella",
 ];
 const CLASS_SLOTS = [
   { day: "Lunes", startHour: 7, durationHours: 2 },
@@ -60,6 +94,7 @@ const CLASS_SLOTS = [
   { day: "Viernes", startHour: 8, durationHours: 2 },
   { day: "Viernes", startHour: 15, durationHours: 2 },
 ] as const;
+const LAB_CLASSES_TABLE = "lab_classes";
 
 const INITIAL_LABS: Lab[] = SCHOOL_LABS.flatMap((labDef, labIndex) =>
   CLASS_SLOTS.map((slot, slotIndex) => ({
@@ -76,10 +111,40 @@ const INITIAL_LABS: Lab[] = SCHOOL_LABS.flatMap((labDef, labIndex) =>
   }))
 );
 
+const toLab = (row: LabClassRow): Lab => ({
+  id: row.id,
+  name: row.lab_name,
+  course: row.course,
+  day: row.day,
+  startHour: row.start_hour,
+  durationHours: row.duration_hours,
+  room: row.room,
+  teacher: row.teacher,
+  capacity: row.capacity,
+  vacancies: row.vacancies,
+});
+
+const toLabInsert = (lab: Omit<Lab, "id">) => ({
+  lab_name: lab.name,
+  course: lab.course,
+  day: lab.day,
+  start_hour: lab.startHour,
+  duration_hours: lab.durationHours,
+  room: lab.room,
+  teacher: lab.teacher,
+  capacity: lab.capacity,
+  vacancies: lab.vacancies,
+});
+
 export default function LaboratorioPage() {
+  const supabase = getSupabaseBrowserClient();
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [labs, setLabs] = useState<Lab[]>(INITIAL_LABS);
   const [enrolledLabs, setEnrolledLabs] = useState<number[]>([]);
+  const [isSupabaseEnabled, setIsSupabaseEnabled] = useState(false);
+  const [labsSyncMessage, setLabsSyncMessage] = useState<string>(
+    supabase ? "Conectando horarios con Supabase..." : "Modo local activo. Agrega tus keys de Supabase para persistencia."
+  );
   
   // Modals / Editing States
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null);
@@ -88,7 +153,6 @@ export default function LaboratorioPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Form Fields
-  const [formName, setFormName] = useState("");
   const [formCourse, setFormCourse] = useState("");
   const [formDay, setFormDay] = useState("Lunes");
   const [formStartHour, setFormStartHour] = useState(8);
@@ -109,8 +173,75 @@ export default function LaboratorioPage() {
     return () => window.removeEventListener("storage", handleUserUpdate);
   }, []);
 
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    let isActive = true;
+
+    const mergeLab = (incoming: Lab) => {
+      setLabs((previous) => {
+        const idx = previous.findIndex((lab) => lab.id === incoming.id);
+        if (idx === -1) return [...previous, incoming];
+        const next = [...previous];
+        next[idx] = incoming;
+        return next;
+      });
+    };
+
+    const loadLabs = async () => {
+      const { data, error } = await supabase
+        .from(LAB_CLASSES_TABLE)
+        .select("*")
+        .returns<LabClassRow[]>();
+
+      if (!isActive) return;
+
+      if (error) {
+        setLabsSyncMessage(`No se pudo cargar Supabase: ${error.message}`);
+        return;
+      }
+
+      setLabs(data.map(toLab));
+      setIsSupabaseEnabled(true);
+      setLabsSyncMessage("Horarios sincronizados con Supabase");
+    };
+
+    loadLabs();
+
+    const channel = supabase
+      .channel("lab-classes-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: LAB_CLASSES_TABLE },
+        (payload) => {
+          if (!isActive) return;
+
+          if (payload.eventType === "DELETE") {
+            const deleted = payload.old as LabClassRow;
+            setLabs((previous) => previous.filter((lab) => lab.id !== deleted.id));
+            return;
+          }
+
+          const row = payload.new as LabClassRow;
+          mergeLab(toLab(row));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isActive = false;
+      channel.unsubscribe();
+    };
+  }, [supabase]);
+
   // Live real-time vacancies fluctuation simulator
   useEffect(() => {
+    if (isSupabaseEnabled) {
+      return;
+    }
+
     const interval = setInterval(() => {
       setLabs(prevLabs =>
         prevLabs.map(lab => {
@@ -124,38 +255,66 @@ export default function LaboratorioPage() {
       );
     }, 4500);
     return () => clearInterval(interval);
-  }, []);
+  }, [isSupabaseEnabled]);
 
-  const handleEnrollment = (labId: number) => {
-    if (enrolledLabs.includes(labId)) {
-      setEnrolledLabs(enrolledLabs.filter(id => id !== labId));
-      setLabs(labs.map(l => l.id === labId ? { ...l, vacancies: Math.min(l.capacity, l.vacancies + 1) } : l));
-    } else {
-      const target = labs.find(l => l.id === labId);
-      if (target && target.vacancies > 0) {
-        setEnrolledLabs([...enrolledLabs, labId]);
-        setLabs(labs.map(l => l.id === labId ? { ...l, vacancies: Math.max(0, l.vacancies - 1) } : l));
+  const getLabNameByRoom = (room: string) => {
+    const labMatch = SCHOOL_LABS.find((lab) => lab.room === room);
+    return labMatch ? labMatch.name : "Laboratorio";
+  };
+
+  const handleEnrollment = async (labId: number) => {
+    const target = labs.find((lab) => lab.id === labId);
+    if (!target) return;
+
+    const alreadyEnrolled = enrolledLabs.includes(labId);
+    const nextVacancies = alreadyEnrolled
+      ? Math.min(target.capacity, target.vacancies + 1)
+      : Math.max(0, target.vacancies - 1);
+
+    if (!alreadyEnrolled && target.vacancies === 0) {
+      return;
+    }
+
+    if (isSupabaseEnabled && supabase) {
+      const { error } = await supabase
+        .from(LAB_CLASSES_TABLE)
+        .update({ vacancies: nextVacancies })
+        .eq("id", labId);
+
+      if (error) {
+        setLabsSyncMessage(`No se pudo actualizar vacantes: ${error.message}`);
+        return;
       }
     }
+
+    setEnrolledLabs((previous) =>
+      alreadyEnrolled ? previous.filter((id) => id !== labId) : [...previous, labId]
+    );
+
+    setLabs((previous) =>
+      previous.map((lab) =>
+        lab.id === labId
+          ? { ...lab, vacancies: nextVacancies }
+          : lab
+      )
+    );
     setIsDetailModalOpen(false);
   };
 
   const openCreateModal = () => {
-    setFormName("");
-    setFormCourse("");
+    setFormCourse(COURSE_POOL[0]);
     setFormDay("Lunes");
     setFormStartHour(8);
     setFormDuration(3);
     setFormRoom(SCHOOL_LABS[0].room);
-    setFormTeacher("");
+    setFormTeacher(TEACHER_POOL[0]);
     setIsCreateModalOpen(true);
   };
 
-  const handleCreateLab = (e: React.FormEvent) => {
+  const handleCreateLab = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newLab: Lab = {
-      id: Date.now(),
-      name: formName,
+    const newLabDraft: Omit<Lab, "id"> = {
+      name: getLabNameByRoom(formRoom),
       course: formCourse,
       day: formDay,
       startHour: Number(formStartHour),
@@ -165,13 +324,37 @@ export default function LaboratorioPage() {
       capacity: 20,
       vacancies: 20
     };
-    setLabs([...labs, newLab]);
+
+    if (isSupabaseEnabled && supabase) {
+      const { data, error } = await supabase
+        .from(LAB_CLASSES_TABLE)
+        .insert(toLabInsert(newLabDraft))
+        .select("*")
+        .returns<LabClassRow[]>();
+
+      if (error) {
+        setLabsSyncMessage(`No se pudo crear el horario: ${error.message}`);
+        return;
+      }
+
+      const created = data[0];
+      if (created) {
+        setLabs((previous) => [...previous, toLab(created)]);
+      }
+      setIsCreateModalOpen(false);
+      return;
+    }
+
+    const newLab: Lab = {
+      id: Date.now(),
+      ...newLabDraft,
+    };
+    setLabs((previous) => [...previous, newLab]);
     setIsCreateModalOpen(false);
   };
 
   const openEditModal = (lab: Lab) => {
     setSelectedLab(lab);
-    setFormName(lab.name);
     setFormCourse(lab.course);
     setFormDay(lab.day);
     setFormStartHour(lab.startHour);
@@ -182,26 +365,59 @@ export default function LaboratorioPage() {
     setIsDetailModalOpen(false);
   };
 
-  const handleEditLab = (e: React.FormEvent) => {
+  const handleEditLab = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLab) return;
 
-    setLabs(labs.map(l => l.id === selectedLab.id ? {
-      ...l,
-      name: formName,
+    const updatedDraft: Omit<Lab, "id"> = {
+      name: getLabNameByRoom(formRoom),
       course: formCourse,
       day: formDay,
       startHour: Number(formStartHour),
       durationHours: Number(formDuration),
       room: formRoom,
-      teacher: formTeacher
-    } : l));
+      teacher: formTeacher,
+      capacity: selectedLab.capacity,
+      vacancies: selectedLab.vacancies,
+    };
+
+    if (isSupabaseEnabled && supabase) {
+      const { error } = await supabase
+        .from(LAB_CLASSES_TABLE)
+        .update(toLabInsert(updatedDraft))
+        .eq("id", selectedLab.id);
+
+      if (error) {
+        setLabsSyncMessage(`No se pudo actualizar el horario: ${error.message}`);
+        return;
+      }
+    }
+
+    setLabs((previous) =>
+      previous.map((lab) =>
+        lab.id === selectedLab.id
+          ? { id: selectedLab.id, ...updatedDraft }
+          : lab
+      )
+    );
     setIsEditModalOpen(false);
   };
 
-  const handleDeleteLab = (labId: number) => {
+  const handleDeleteLab = async (labId: number) => {
     if (confirm("¿Estás seguro de eliminar este laboratorio?")) {
-      setLabs(labs.filter(l => l.id !== labId));
+      if (isSupabaseEnabled && supabase) {
+        const { error } = await supabase
+          .from(LAB_CLASSES_TABLE)
+          .delete()
+          .eq("id", labId);
+
+        if (error) {
+          setLabsSyncMessage(`No se pudo eliminar el horario: ${error.message}`);
+          return;
+        }
+      }
+
+      setLabs((previous) => previous.filter((lab) => lab.id !== labId));
       setIsDetailModalOpen(false);
     }
   };
@@ -250,13 +466,17 @@ export default function LaboratorioPage() {
           )}
         </div>
 
+        <div className="text-xs rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 text-slate-600 dark:text-slate-350">
+          {labsSyncMessage}
+        </div>
+
         {/* Laboratory schedules (calendar mode) */}
         <div className="space-y-4">
           {laboratorySchedules.map(({ name, room, schedules }) => (
             <section key={room} className="border border-slate-250 dark:border-slate-800/80 rounded-2xl bg-white dark:bg-slate-900/60 shadow-sm transition-all p-4">
               <div className="pb-3 border-b border-slate-100 dark:border-slate-800/80">
                 <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">{name}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Salón {room} · Calendario de 7:00 AM a 8:00 PM · {schedules.length} clases</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Salón {room} · {schedules.length} clases</p>
               </div>
 
               {schedules.length > 0 ? (
@@ -428,29 +648,22 @@ export default function LaboratorioPage() {
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="text-[10px] text-slate-400 block font-semibold mb-1">Nombre de la Sección</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Lab A: Machine Learning"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-550 outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-slate-400 block font-semibold mb-1">Curso</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Inteligencia Artificial"
-                  value={formCourse}
-                  onChange={(e) => setFormCourse(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
-                  required
-                />
-              </div>
+            <div>
+              <label className="text-[10px] text-slate-400 block font-semibold mb-1">Curso</label>
+              <input
+                type="text"
+                list="course-options"
+                value={formCourse}
+                onChange={(e) => setFormCourse(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                required
+              />
+              <datalist id="course-options">
+                {COURSE_POOL.map((course) => (
+                  <option key={course} value={course} />
+                ))}
+              </datalist>
+            </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -508,12 +721,17 @@ export default function LaboratorioPage() {
                 <label className="text-[10px] text-slate-400 block font-semibold mb-1">Docente Encargado</label>
                 <input
                   type="text"
-                  placeholder="Ej: Ing. Carlos Mendoza"
+                  list="teacher-options"
                   value={formTeacher}
                   onChange={(e) => setFormTeacher(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   required
                 />
+                <datalist id="teacher-options">
+                  {TEACHER_POOL.map((teacher) => (
+                    <option key={teacher} value={teacher} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
@@ -538,25 +756,20 @@ export default function LaboratorioPage() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] text-slate-400 block font-semibold mb-1">Nombre del Laboratorio</label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
-                  required
-                />
-              </div>
-
-              <div>
                 <label className="text-[10px] text-slate-400 block font-semibold mb-1">Curso</label>
                 <input
                   type="text"
+                  list="course-options"
                   value={formCourse}
                   onChange={(e) => setFormCourse(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   required
                 />
+                <datalist id="course-options">
+                  {COURSE_POOL.map((course) => (
+                    <option key={course} value={course} />
+                  ))}
+                </datalist>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -615,11 +828,17 @@ export default function LaboratorioPage() {
                 <label className="text-[10px] text-slate-400 block font-semibold mb-1">Docente</label>
                 <input
                   type="text"
+                  list="teacher-options"
                   value={formTeacher}
                   onChange={(e) => setFormTeacher(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   required
                 />
+                <datalist id="teacher-options">
+                  {TEACHER_POOL.map((teacher) => (
+                    <option key={teacher} value={teacher} />
+                  ))}
+                </datalist>
               </div>
             </div>
 

@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## LabSy
 
-## Getting Started
+Aplicación Next.js para gestión visual de horarios de laboratorios.
 
-First, run the development server:
+## Ejecutar en local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Conexión con Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Se dejó integrada la base para Supabase en frontend:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Cliente: `src/lib/supabase/client.ts`
+- Tabla esperada: `public.lab_classes`
+- Script SQL: `supabase/lab_classes.sql`
 
-## Learn More
+### 1) Configurar variables de entorno
 
-To learn more about Next.js, take a look at the following resources:
+1. Copia `.env.example` a `.env.local`
+2. Completa:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 2) Crear tabla en Supabase
 
-## Deploy on Vercel
+Ejecuta el script `supabase/lab_classes.sql` en el SQL Editor de tu proyecto.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 3) Activar Realtime para `lab_classes`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+En Supabase, habilita Realtime para la tabla `public.lab_classes` para recibir actualizaciones en vivo en la vista calendario.
+
+> Si no hay variables de entorno configuradas, la página de laboratorio funciona en modo local con datos semilla.
