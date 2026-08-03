@@ -14,6 +14,7 @@ import {
   Sun,
   Moon
 } from "lucide-react";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 interface User {
   name: string;
@@ -40,7 +41,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!storedUser) {
       router.push("/");
     } else {
-      setCurrentUser(JSON.parse(storedUser));
+      const parsed = JSON.parse(storedUser);
+      if (parsed && parsed.name) {
+        parsed.name = parsed.name.toUpperCase();
+      }
+      setCurrentUser(parsed);
     }
     setMounted(true);
   }, [router]);
@@ -51,23 +56,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.setItem("labsy_theme", nextTheme ? "dark" : "light");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     localStorage.removeItem("labsy_user");
     router.push("/");
   };
 
   const switchRole = (role: "estudiante" | "docente" | "admin") => {
     if (!currentUser) return;
-    let name = "Estudiante Sistemas";
+    let name = "ESTUDIANTE SISTEMAS";
     let email = "estudiante@sistemas.edu.pe";
     if (role === "admin") {
-      name = "Administrador TI";
+      name = "ADMINISTRADOR TI";
       email = "admin@sistemas.edu.pe";
     } else if (role === "docente") {
-      name = "Docente Principal";
+      name = "DOCENTE PRINCIPAL";
       email = "docente@sistemas.edu.pe";
     }
-    const updatedUser = { name, email, role };
+    const updatedUser = { name: name.toUpperCase(), email, role };
     setCurrentUser(updatedUser);
     localStorage.setItem("labsy_user", JSON.stringify(updatedUser));
     // Trigger storage event so other pages know

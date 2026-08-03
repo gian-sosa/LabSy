@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { GraduationCap, AlertCircle, Sun, Moon } from "lucide-react";
 import { Analytics } from "@vercel/analytics/next"
 
+import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase/client";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -12,16 +14,77 @@ export default function LoginPage() {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const storedUser = localStorage.getItem("labsy_user");
-    if (storedUser) {
-      router.push("/inicio");
+    // 1. Listen for Supabase Auth state changes (useful for Google OAuth redirects)
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          const user = session.user;
+          const userEmail = user.email || "";
+          
+          // Get full name from metadata and convert it to uppercase
+          const fullName = (
+            user.user_metadata?.full_name || 
+            user.user_metadata?.name || 
+            user.email?.split("@")[0] || 
+            "USUARIO SIN NOMBRE"
+          ).toUpperCase();
+
+          // Determine role based on email domain/prefix
+          let role = "estudiante";
+          if (userEmail.startsWith("admin")) {
+            role = "admin";
+          } else if (userEmail.startsWith("docente") || userEmail.startsWith("prof")) {
+            role = "docente";
+          }
+
+          localStorage.setItem("labsy_user", JSON.stringify({ name: fullName, email: userEmail, role }));
+          router.push("/inicio");
+        }
+      });
+
+      // Also check if already logged in with Supabase
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          const user = session.user;
+          const userEmail = user.email || "";
+          const fullName = (
+            user.user_metadata?.full_name || 
+            user.user_metadata?.name || 
+            user.email?.split("@")[0] || 
+            "USUARIO SIN NOMBRE"
+          ).toUpperCase();
+
+          let role = "estudiante";
+          if (userEmail.startsWith("admin")) {
+            role = "admin";
+          } else if (userEmail.startsWith("docente") || userEmail.startsWith("prof")) {
+            role = "docente";
+          }
+
+          localStorage.setItem("labsy_user", JSON.stringify({ name: fullName, email: userEmail, role }));
+          router.push("/inicio");
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } else {
+      // Fallback: Check if user is already logged in locally (if Supabase is not configured)
+      const storedUser = localStorage.getItem("labsy_user");
+      if (storedUser) {
+        router.push("/inicio");
+      }
     }
+  }, [router]);
+
+  useEffect(() => {
     const storedTheme = localStorage.getItem("labsy_theme");
     if (storedTheme) {
       setIsDarkMode(storedTheme === "dark");
     }
-  }, [router]);
+  }, []);
 
   const toggleTheme = () => {
     const nextTheme = !isDarkMode;
@@ -29,8 +92,25 @@ export default function LoginPage() {
     localStorage.setItem("labsy_theme", nextTheme ? "dark" : "light");
   };
 
-  const handleGoogleLogin = (e: React.FormEvent) => {
+  const handleGoogleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      });
+
+      if (error) {
+        setAuthError(`Error de Supabase: ${error.message}`);
+      }
+      return;
+    }
+
+    // Fallback: Mock login logic if Supabase is not configured
     if (!email) {
       setAuthError("Ingresa tu correo institucional");
       return;
@@ -41,16 +121,16 @@ export default function LoginPage() {
     }
 
     let role = "estudiante";
-    let name = "Estudiante Sistemas";
+    let name = "ESTUDIANTE SISTEMAS";
     if (email.startsWith("admin")) {
       role = "admin";
-      name = "Administrador TI";
+      name = "ADMINISTRADOR TI";
     } else if (email.startsWith("docente") || email.startsWith("prof")) {
       role = "docente";
-      name = "Docente Principal";
+      name = "DOCENTE PRINCIPAL";
     }
 
-    localStorage.setItem("labsy_user", JSON.stringify({ name, email, role }));
+    localStorage.setItem("labsy_user", JSON.stringify({ name: name.toUpperCase(), email, role }));
     router.push("/inicio");
   };
 
