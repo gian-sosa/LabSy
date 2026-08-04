@@ -138,7 +138,7 @@ const toLabInsert = (lab: Omit<Lab, "id">) => ({
 
 export default function LaboratorioPage() {
   const supabase = getSupabaseBrowserClient();
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string;role: string } | null>(null);
   const [labs, setLabs] = useState<Lab[]>([]);
   const [enrolledLabs, setEnrolledLabs] = useState<number[]>([]);
   const [isSupabaseEnabled, setIsSupabaseEnabled] = useState(false);
