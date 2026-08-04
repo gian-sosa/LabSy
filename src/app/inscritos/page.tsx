@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import DashboardLayout from "../components/DashboardLayout";
 import { Calendar, Download, Users, X, Info } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import * as XLSX from "xlsx";
 
 interface Lab {
   id: number;
@@ -261,40 +262,100 @@ export default function InscritosPage() {
     };
   }, [mounted, supabase]);
 
-  const handleLabClick = (lab: Lab) => {
+  const handleLabClick = async (lab: Lab) => {
     setSelectedLab(lab);
-    const totalEnrolled = lab.capacity - lab.vacancies;
-    const list = generateEnrolledStudents(lab.id, lab.course, totalEnrolled);
-    setEnrolledStudents(list);
     setIsStudentModalOpen(true);
+    setEnrolledStudents([]);
+
+    if (supabase && isSupabaseEnabled) {
+      const { data, error } = await supabase
+        .from("lab_enrollments")
+        .select("student_name, student_email")
+        .eq("lab_class_id", lab.id);
+
+      if (!error && data) {
+        const list: Student[] = data.map((item, idx) => {
+          const nameStr = item.student_name || "";
+          let lastName = "";
+          let firstName = "";
+          if (nameStr.includes(",")) {
+            const parts = nameStr.split(",");
+            lastName = parts[0].trim();
+            firstName = parts.slice(1).join(",").trim();
+          } else {
+            const parts = nameStr.trim().split(" ");
+            if (parts.length > 1) {
+              firstName = parts[0];
+              lastName = parts.slice(1).join(" ");
+            } else {
+              firstName = nameStr;
+              lastName = "";
+            }
+          }
+
+          return {
+            number: idx + 1,
+            lastName,
+            firstName,
+            email: item.student_email,
+          };
+        });
+        setEnrolledStudents(list);
+      } else {
+        const totalEnrolled = lab.capacity - lab.vacancies;
+        const list = generateEnrolledStudents(lab.id, lab.course, totalEnrolled);
+        setEnrolledStudents(list);
+      }
+    } else {
+      const totalEnrolled = lab.capacity - lab.vacancies;
+      const list = generateEnrolledStudents(lab.id, lab.course, totalEnrolled);
+      setEnrolledStudents(list);
+    }
   };
 
   const exportToExcel = () => {
     if (!selectedLab) return;
 
     const courseSanitized = selectedLab.course.replace(/[^a-zA-Z0-9]/g, "_");
-    const fileName = `inscritos_${selectedLab.room}_${courseSanitized}.csv`;
+    const fileName = `inscritos_${selectedLab.room}_${courseSanitized}.xlsx`;
 
-    // CSV format headers
-    let csvContent = "\uFEFF"; // UTF-8 BOM to display accented characters in Excel correctly
-    csvContent += "N°,Alumno (Apellidos y Nombres),Correo Electrónico,Asistencia\n";
+    const headerInfo = [
+      ["PORTAL ACADÉMICO LABSY"],
+      [`Reporte de Alumnos Inscritos - Laboratorio: ${selectedLab.room}`],
+      [`Curso: ${selectedLab.course}`],
+      [`Docente: ${selectedLab.teacher}`],
+      [],
+      ["N°", "Alumno (Apellidos y Nombres)", "Correo Electrónico", "Asistencia"]
+    ];
 
-    enrolledStudents.forEach((student) => {
-      const fullname = `"${student.lastName}, ${student.firstName}"`;
-      csvContent += `${student.number},${fullname},${student.email},\n`;
-    });
+    const studentRows = enrolledStudents.map((student, idx) => [
+      idx + 1,
+      `${student.lastName}, ${student.firstName}`,
+      student.email,
+      ""
+    ]);
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", fileName);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    const footer = [
+      [],
+      ["Labsy - Desarrollado por CEIS 2027"]
+    ];
+
+    const aoa = [...headerInfo, ...studentRows, ...footer];
+    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 45 },
+      { wch: 35 },
+      { wch: 15 }
+    ];
+
+    worksheet["!views"] = [{ showGridLines: true }];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inscritos");
+
+    XLSX.writeFile(workbook, fileName);
   };
 
   if (!mounted || !currentUser) {

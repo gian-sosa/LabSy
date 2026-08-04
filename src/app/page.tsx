@@ -9,7 +9,6 @@ import { getSupabaseBrowserClient, hasSupabaseConfig } from "@/lib/supabase/clie
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
   const [authError, setAuthError] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(true);
 
@@ -96,31 +95,6 @@ export default function LoginPage() {
     localStorage.setItem("labsy_theme", nextTheme ? "dark" : "light");
   };
 
-  const handleMockLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      setAuthError("Ingresa tu correo institucional");
-      return;
-    }
-    if (!email.endsWith("@sistemas.edu.pe") && !email.endsWith("@uni.edu.pe")) {
-      setAuthError("Debe ser un correo con dominio @sistemas.edu.pe o @uni.edu.pe");
-      return;
-    }
-
-    let role = "estudiante";
-    let name = "ESTUDIANTE SISTEMAS";
-    if (email.startsWith("admin")) {
-      role = "admin";
-      name = "ADMINISTRADOR TI";
-    } else if (email.startsWith("docente") || email.startsWith("prof")) {
-      role = "docente";
-      name = "DOCENTE PRINCIPAL";
-    }
-
-    localStorage.setItem("labsy_user", JSON.stringify({ name: name.toUpperCase(), email, role }));
-    router.push("/inicio");
-  };
-
   const handleGoogleLogin = async () => {
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
@@ -135,7 +109,7 @@ export default function LoginPage() {
         setAuthError(`Error de Supabase: ${error.message}`);
       }
     } else {
-      setAuthError("Supabase no configurado o inactivo. Usa la simulación por correo.");
+      setAuthError("Supabase no configurado o inactivo.");
     }
   };
 
@@ -194,56 +168,12 @@ export default function LoginPage() {
             </svg>
             Iniciar sesión con Google
           </button>
-
-          <div className="flex items-center my-4">
-            <div className="flex-1 border-t border-slate-200 dark:border-slate-800"></div>
-            <span className={`px-3 text-xs uppercase tracking-wider ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>o simular correo</span>
-            <div className="flex-1 border-t border-slate-200 dark:border-slate-800"></div>
-          </div>
-
-          <form onSubmit={handleMockLogin} className="space-y-4">
-            <div>
-              <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${
-                isDarkMode ? "text-slate-400" : "text-slate-500"
-              }`}>
-                Correo Institucional
-              </label>
-              <div className="relative">
-                <input
-                  type="email"
-                  placeholder="usuario@sistemas.edu.pe"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`w-full border rounded-xl px-4 py-3 text-sm transition-all outline-none ${
-                    isDarkMode 
-                      ? "bg-slate-950 border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-slate-200 placeholder-slate-700" 
-                      : "bg-slate-100 border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-slate-900 placeholder-slate-400"
-                  }`}
-                />
-              </div>
-              <p className={`text-[11px] mt-1.5 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>
-                * Usa <code className="text-amber-500 font-bold">docente@sistemas.edu.pe</code> o <code className="text-amber-500 font-bold">admin@sistemas.edu.pe</code> para simular roles.
-              </p>
-            </div>
-
             {authError && (
-              <div className="flex items-center gap-2 text-xs bg-red-950/20 border border-red-900/30 text-red-400 p-3 rounded-xl">
+              <div className="flex items-center gap-2 text-xs bg-red-950/20 border border-red-900/30 text-red-400 p-3 rounded-xl mt-4">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{authError}</span>
               </div>
             )}
-
-            <button
-              type="submit"
-              className={`w-full font-semibold rounded-xl py-3 text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] cursor-pointer ${
-                isDarkMode 
-                  ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700" 
-                  : "bg-slate-200 hover:bg-slate-300 text-slate-900 border border-slate-300"
-              }`}
-            >
-              Ingresar con Correo
-            </button>
-          </form>
         </div>
       </div>
     </div>
