@@ -30,6 +30,8 @@ export default function LoginPage() {
             "USUARIO SIN NOMBRE"
           ).toUpperCase();
 
+          const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
+
           // Determine role based on email domain/prefix
           let role = "estudiante";
           if (userEmail.startsWith("admin")) {
@@ -38,7 +40,7 @@ export default function LoginPage() {
             role = "docente";
           }
 
-          localStorage.setItem("labsy_user", JSON.stringify({ name: fullName, email: userEmail, role }));
+          localStorage.setItem("labsy_user", JSON.stringify({ name: fullName, email: userEmail, role, avatar: avatarUrl }));
           router.push("/inicio");
         }
       });
@@ -55,6 +57,8 @@ export default function LoginPage() {
             "USUARIO SIN NOMBRE"
           ).toUpperCase();
 
+          const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
+
           let role = "estudiante";
           if (userEmail.startsWith("admin")) {
             role = "admin";
@@ -62,7 +66,7 @@ export default function LoginPage() {
             role = "docente";
           }
 
-          localStorage.setItem("labsy_user", JSON.stringify({ name: fullName, email: userEmail, role }));
+          localStorage.setItem("labsy_user", JSON.stringify({ name: fullName, email: userEmail, role, avatar: avatarUrl }));
           router.push("/inicio");
         }
       });
@@ -92,25 +96,8 @@ export default function LoginPage() {
     localStorage.setItem("labsy_theme", nextTheme ? "dark" : "light");
   };
 
-  const handleGoogleLogin = async (e: React.FormEvent) => {
+  const handleMockLogin = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const supabase = getSupabaseBrowserClient();
-    if (supabase) {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
-      });
-
-      if (error) {
-        setAuthError(`Error de Supabase: ${error.message}`);
-      }
-      return;
-    }
-
-    // Fallback: Mock login logic if Supabase is not configured
     if (!email) {
       setAuthError("Ingresa tu correo institucional");
       return;
@@ -132,6 +119,24 @@ export default function LoginPage() {
 
     localStorage.setItem("labsy_user", JSON.stringify({ name: name.toUpperCase(), email, role }));
     router.push("/inicio");
+  };
+
+  const handleGoogleLogin = async () => {
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      });
+
+      if (error) {
+        setAuthError(`Error de Supabase: ${error.message}`);
+      }
+    } else {
+      setAuthError("Supabase no configurado o inactivo. Usa la simulación por correo.");
+    }
   };
 
   return (
@@ -163,7 +168,7 @@ export default function LoginPage() {
           <div className="h-16 w-16 bg-linear-to-tr from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 mb-4">
             <GraduationCap className="h-9 w-9 text-slate-950 stroke-2" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight gradient-linear-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold tracking-tight bg-linear-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
             LabSy
           </h1>
           <p className={`text-sm mt-2 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>
@@ -171,41 +176,11 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleGoogleLogin} className="space-y-6">
-          <div>
-            <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${
-              isDarkMode ? "text-slate-400" : "text-slate-500"
-            }`}>
-              Correo Institucional
-            </label>
-            <div className="relative">
-              <input
-                type="email"
-                placeholder="usuario@sistemas.edu.pe"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`w-full border rounded-xl px-4 py-3 text-sm transition-all outline-none ${
-                  isDarkMode 
-                    ? "bg-slate-950 border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-slate-200 placeholder-slate-700" 
-                    : "bg-slate-100 border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-slate-900 placeholder-slate-400"
-                }`}
-              />
-            </div>
-            <p className={`text-[11px] mt-1.5 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>
-              * Usa <code className="text-amber-500 font-bold">docente@sistemas.edu.pe</code> o <code className="text-amber-500 font-bold">admin@sistemas.edu.pe</code> para probar otros roles.
-            </p>
-          </div>
-
-          {authError && (
-            <div className="flex items-center gap-2 text-xs bg-red-950/20 border border-red-900/30 text-red-400 p-3 rounded-xl">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{authError}</span>
-            </div>
-          )}
-
+        <div className="space-y-6">
           <button
-            type="submit"
-            className={`w-full font-semibold rounded-xl py-3 text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] ${
+            type="button"
+            onClick={handleGoogleLogin}
+            className={`w-full font-semibold rounded-xl py-3 text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] cursor-pointer ${
               isDarkMode 
                 ? "bg-white hover:bg-slate-200 text-slate-950 shadow-lg shadow-white/5" 
                 : "bg-slate-950 hover:bg-slate-900 text-white shadow-lg shadow-slate-950/15"
@@ -219,7 +194,57 @@ export default function LoginPage() {
             </svg>
             Iniciar sesión con Google
           </button>
-        </form>
+
+          <div className="flex items-center my-4">
+            <div className="flex-1 border-t border-slate-200 dark:border-slate-800"></div>
+            <span className={`px-3 text-xs uppercase tracking-wider ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>o simular correo</span>
+            <div className="flex-1 border-t border-slate-200 dark:border-slate-800"></div>
+          </div>
+
+          <form onSubmit={handleMockLogin} className="space-y-4">
+            <div>
+              <label className={`block text-xs font-semibold uppercase tracking-wider mb-2 ${
+                isDarkMode ? "text-slate-400" : "text-slate-500"
+              }`}>
+                Correo Institucional
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  placeholder="usuario@sistemas.edu.pe"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={`w-full border rounded-xl px-4 py-3 text-sm transition-all outline-none ${
+                    isDarkMode 
+                      ? "bg-slate-950 border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-slate-200 placeholder-slate-700" 
+                      : "bg-slate-100 border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-slate-900 placeholder-slate-400"
+                  }`}
+                />
+              </div>
+              <p className={`text-[11px] mt-1.5 ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}>
+                * Usa <code className="text-amber-500 font-bold">docente@sistemas.edu.pe</code> o <code className="text-amber-500 font-bold">admin@sistemas.edu.pe</code> para simular roles.
+              </p>
+            </div>
+
+            {authError && (
+              <div className="flex items-center gap-2 text-xs bg-red-950/20 border border-red-900/30 text-red-400 p-3 rounded-xl">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className={`w-full font-semibold rounded-xl py-3 text-sm flex items-center justify-center gap-3 transition-all active:scale-[0.98] cursor-pointer ${
+                isDarkMode 
+                  ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700" 
+                  : "bg-slate-200 hover:bg-slate-300 text-slate-900 border border-slate-300"
+              }`}
+            >
+              Ingresar con Correo
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

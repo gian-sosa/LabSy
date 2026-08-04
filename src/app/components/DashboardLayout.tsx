@@ -20,6 +20,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  avatar?: string;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -76,7 +77,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       name = "DOCENTE PRINCIPAL";
       email = "docente@sistemas.edu.pe";
     }
-    const updatedUser = { name: name.toUpperCase(), email, role };
+    const updatedUser = { name: name.toUpperCase(), email, role, avatar: currentUser.avatar };
     setCurrentUser(updatedUser);
     localStorage.setItem("labsy_user", JSON.stringify(updatedUser));
     // Trigger storage event so other pages know
@@ -139,11 +140,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         isDarkMode ? "bg-slate-950/80 border-slate-900 backdrop-blur-md" : "bg-white/80 border-slate-200 backdrop-blur-md"
       }`}>
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-gradient-to-tr from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
-            <GraduationCap className="h-6 w-6 text-slate-950 stroke-[2]" />
+          <div className="h-10 w-10 bg-linear-to-tr from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
+            <GraduationCap className="h-6 w-6 text-slate-950 stroke-2" />
           </div>
           <div>
-            <h1 className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
+            <h1 className="font-extrabold text-lg tracking-tight bg-linear-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
               LabSy
             </h1>
             <p className={`text-[10px] ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>ESCUELA DE INGENIERÍA DE SISTEMAS</p>
@@ -174,11 +175,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               </div>
             </div>
-            <div className={`h-9 w-9 rounded-full flex items-center justify-center border text-sm font-bold ${
-              isDarkMode ? "bg-slate-900 border-slate-800 text-amber-400" : "bg-slate-100 border-slate-200 text-slate-800"
-            }`}>
-              {currentUser.name.charAt(0)}
-            </div>
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="h-9 w-9 rounded-full object-cover border border-slate-200 dark:border-slate-800"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className={`h-9 w-9 rounded-full flex items-center justify-center border text-sm font-bold ${
+                isDarkMode ? "bg-slate-900 border-slate-800 text-amber-400" : "bg-slate-100 border-slate-200 text-slate-800"
+              }`}>
+                {currentUser.name.charAt(0)}
+              </div>
+            )}
           </div>
 
           <button
@@ -240,6 +250,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Laboratorio
                 <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
               </Link>
+              {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
+                <Link
+                  href="/inscritos"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                    pathname === "/inscritos"
+                      ? "bg-amber-500 text-slate-950 font-bold"
+                      : isDarkMode
+                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      : "text-slate-655 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  Inscritos
+                </Link>
+              )}
             </nav>
           </div>
         </aside>

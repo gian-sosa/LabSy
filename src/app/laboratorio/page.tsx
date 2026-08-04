@@ -34,11 +34,11 @@ interface LabClassRow {
 const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 const HOURS_RANGE = Array.from({ length: 14 }, (_, i) => i + 7); // 7 AM to 8 PM (20:00)
 const SCHOOL_LABS = [
-  { name: "Laboratorio 1", room: "H-201" },
-  { name: "Laboratorio 2", room: "H-202" },
-  { name: "Laboratorio 3", room: "H-203" },
-  { name: "Laboratorio 4", room: "H-204" },
-  { name: "Laboratorio 5", room: "H-205" },
+  { name: "Laboratorio 1", room: "H-212" },
+  { name: "Laboratorio 2", room: "H-213" },
+  { name: "Laboratorio 3", room: "H-214" },
+  { name: "Laboratorio 4", room: "H-218" },
+  { name: "Laboratorio 5", room: "H-219" },
 ] as const;
 const COURSE_POOL = [
   "Estadística Aplicada",
@@ -139,7 +139,7 @@ const toLabInsert = (lab: Omit<Lab, "id">) => ({
 export default function LaboratorioPage() {
   const supabase = getSupabaseBrowserClient();
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
-  const [labs, setLabs] = useState<Lab[]>(INITIAL_LABS);
+  const [labs, setLabs] = useState<Lab[]>([]);
   const [enrolledLabs, setEnrolledLabs] = useState<number[]>([]);
   const [isSupabaseEnabled, setIsSupabaseEnabled] = useState(false);
   const [labsSyncMessage, setLabsSyncMessage] = useState<string>(
@@ -206,6 +206,18 @@ export default function LaboratorioPage() {
       setLabs(data.map(toLab));
       setIsSupabaseEnabled(true);
       setLabsSyncMessage("Horarios sincronizados con Supabase");
+
+      // Cargar inscripciones reales del usuario desde la BD
+      if (currentUser) {
+        const { data: enrollments, error: enrollError } = await supabase
+          .from("lab_enrollments")
+          .select("lab_class_id")
+          .eq("student_email", currentUser.email);
+
+        if (!enrollError && enrollments && isActive) {
+          setEnrolledLabs(enrollments.map((e: any) => Number(e.lab_class_id)));
+        }
+      }
     };
 
     loadLabs();
@@ -218,6 +230,8 @@ export default function LaboratorioPage() {
         (payload) => {
           if (!isActive) return;
 
+          console.log("Supabase Realtime event received:", payload);
+
           if (payload.eventType === "DELETE") {
             const deleted = payload.old as LabClassRow;
             setLabs((previous) => previous.filter((lab) => lab.id !== deleted.id));
@@ -228,13 +242,18 @@ export default function LaboratorioPage() {
           mergeLab(toLab(row));
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log(`Realtime subscription status: ${status}`, err || "");
+        if (status === "CHANNEL_ERROR") {
+          setLabsSyncMessage("Error de conexión en tiempo real con Supabase. Verifica políticas RLS/Replicación.");
+        }
+      });
 
     return () => {
       isActive = false;
       channel.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, currentUser]);
 
   // Live real-time vacancies fluctuation simulator
   useEffect(() => {
@@ -263,41 +282,69 @@ export default function LaboratorioPage() {
   };
 
   const handleEnrollment = async (labId: number) => {
+    if (!currentUser) return;
     const target = labs.find((lab) => lab.id === labId);
     if (!target) return;
 
     const alreadyEnrolled = enrolledLabs.includes(labId);
-    const nextVacancies = alreadyEnrolled
-      ? Math.min(target.capacity, target.vacancies + 1)
-      : Math.max(0, target.vacancies - 1);
 
     if (!alreadyEnrolled && target.vacancies === 0) {
       return;
     }
 
     if (isSupabaseEnabled && supabase) {
-      const { error } = await supabase
-        .from(LAB_CLASSES_TABLE)
-        .update({ vacancies: nextVacancies })
-        .eq("id", labId);
+      if (alreadyEnrolled) {
+        // Desmatricular del curso en Supabase
+        const { error } = await supabase
+          .from("lab_enrollments")
+          .delete()
+          .eq("lab_class_id", labId)
+          .eq("student_email", currentUser.email);
 
-      if (error) {
-        setLabsSyncMessage(`No se pudo actualizar vacantes: ${error.message}`);
-        return;
+        if (error) {
+          setLabsSyncMessage(`No se pudo cancelar la inscripción: ${error.message}`);
+          return;
+        }
+      } else {
+        // Matricularse en Supabase con los datos reales
+        const { error } = await supabase
+          .from("lab_enrollments")
+          .insert({
+            lab_class_id: labId,
+            student_name: currentUser.name,
+            student_email: currentUser.email
+          });
+
+        if (error) {
+          setLabsSyncMessage(`No se pudo realizar la inscripción: ${error.message}`);
+          return;
+        }
       }
+      
+      // El trigger en Supabase actualizará la columna vacancies en la tabla lab_classes automáticamente
+      // e informará a todos los clientes por Realtime. Actualizamos el estado local por velocidad de respuesta:
+      setEnrolledLabs((previous) =>
+        alreadyEnrolled ? previous.filter((id) => id !== labId) : [...previous, labId]
+      );
+    } else {
+      // Fallback local sin Supabase
+      const nextVacancies = alreadyEnrolled
+        ? Math.min(target.capacity, target.vacancies + 1)
+        : Math.max(0, target.vacancies - 1);
+
+      setEnrolledLabs((previous) =>
+        alreadyEnrolled ? previous.filter((id) => id !== labId) : [...previous, labId]
+      );
+
+      setLabs((previous) =>
+        previous.map((lab) =>
+          lab.id === labId
+            ? { ...lab, vacancies: nextVacancies }
+            : lab
+        )
+      );
     }
-
-    setEnrolledLabs((previous) =>
-      alreadyEnrolled ? previous.filter((id) => id !== labId) : [...previous, labId]
-    );
-
-    setLabs((previous) =>
-      previous.map((lab) =>
-        lab.id === labId
-          ? { ...lab, vacancies: nextVacancies }
-          : lab
-      )
-    );
+    
     setIsDetailModalOpen(false);
   };
 

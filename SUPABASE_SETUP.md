@@ -1,6 +1,6 @@
 # Configuración de la Base de Datos en Supabase
 
-Este documento contiene el script de PostgreSQL necesario para configurar la base de datos en Supabase para el correcto funcionamiento del sistema de horarios de laboratorios (`LabSy`).
+Este documento contiene el script de PostgreSQL necesario para configurar la base de datos en Supabase para el correcto funcionamiento del sistema de horarios y matrículas de laboratorios (`LabSy`).
 
 ## Instrucciones de Instalación
 
@@ -9,14 +9,16 @@ Este documento contiene el script de PostgreSQL necesario para configurar la bas
 3. Ve a la sección **SQL Editor** en el menú lateral izquierdo.
 4. Crea un nuevo query haciendo clic en **New query**.
 5. Copia y pega el código SQL que se presenta a continuación.
-6. Haz clic en **Run** para ejecutar el script y crear la tabla, índices, triggers y habilitar el tiempo real (Realtime).
+6. Haz clic en **Run** para ejecutar el script completo. Esto configurará las tablas, índices, funciones, triggers automáticos y el tiempo real (Realtime).
 
 ---
 
 ## Código PostgreSQL
 
 ```sql
--- 1. Crear la tabla de clases/horarios de laboratorio
+-- =========================================================================
+-- 1. CREAR LA TABLA DE HORARIOS (lab_classes)
+-- =========================================================================
 create table if not exists public.lab_classes (
   id bigint generated always as identity primary key,
   lab_name text not null,
@@ -32,64 +34,119 @@ create table if not exists public.lab_classes (
   updated_at timestamptz not null default now()
 );
 
--- 2. Crear un índice para optimizar las búsquedas por salón, día y hora de inicio
+-- Crear índice para optimizar búsquedas
 create index if not exists lab_classes_room_day_start_idx
   on public.lab_classes (room, day, start_hour);
 
--- 3. Crear función para actualizar automáticamente el campo `updated_at`
+-- Función para actualizar updated_at
 create or replace function public.set_lab_classes_updated_at()
-returns trigger
-language plpgsql
-as $$
+returns trigger language plpgsql as $$
 begin
   new.updated_at = now();
   return new;
 end;
 $$;
 
--- 4. Crear trigger para disparar la función antes de cada actualización
+-- Trigger para updated_at
 drop trigger if exists trg_lab_classes_updated_at on public.lab_classes;
 create trigger trg_lab_classes_updated_at
 before update on public.lab_classes
-for each row
-execute function public.set_lab_classes_updated_at();
+for each row execute function public.set_lab_classes_updated_at();
 
--- 5. Habilitar publicación Realtime en la tabla lab_classes para sincronización en tiempo real
+
+-- =========================================================================
+-- 2. CREAR LA TABLA DE MATRÍCULAS/INSCRITOS (lab_enrollments)
+-- =========================================================================
+create table if not exists public.lab_enrollments (
+  id bigint generated always as identity primary key,
+  lab_class_id bigint not null references public.lab_classes(id) on delete cascade,
+  student_name text not null,
+  student_email text not null,
+  created_at timestamptz not null default now(),
+  unique (lab_class_id, student_email) -- Evita inscripciones duplicadas
+);
+
+-- Crear índice para búsquedas por estudiante y clase
+create index if not exists lab_enrollments_student_idx 
+  on public.lab_enrollments (student_email);
+create index if not exists lab_enrollments_class_idx 
+  on public.lab_enrollments (lab_class_id);
+
+
+-- =========================================================================
+-- 3. TRIGGER AUTOMÁTICO PARA ACTUALIZAR VACANTES EN LAB_CLASSES
+-- =========================================================================
+create or replace function public.update_lab_class_vacancies()
+returns trigger language plpgsql as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.lab_classes
+    set vacancies = greatest(0, vacancies - 1)
+    where id = new.lab_class_id;
+    return new;
+  elsif tg_op = 'DELETE' then
+    update public.lab_classes
+    set vacancies = least(capacity, vacancies + 1)
+    where id = old.lab_class_id;
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists trg_update_lab_class_vacancies on public.lab_enrollments;
+create trigger trg_update_lab_class_vacancies
+after insert or delete on public.lab_enrollments
+for each row execute function public.update_lab_class_vacancies();
+
+
+-- =========================================================================
+-- 4. CONFIGURAR REPLICA IDENTITY Y REALTIME
+-- =========================================================================
 alter table public.lab_classes replica identity full;
+alter table public.lab_enrollments replica identity full;
 
--- Agregar la tabla a la publicación en tiempo real de Supabase de manera segura
+-- Agregar tablas a la publicación de tiempo real de Supabase
 do $$
 begin
+  -- Registrar lab_classes en tiempo real
   if not exists (
     select 1 from pg_publication_tables 
-    where pubname = 'supabase_realtime' 
-    and schemaname = 'public' 
-    and tablename = 'lab_classes'
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'lab_classes'
   ) then
     alter publication supabase_realtime add table public.lab_classes;
   end if;
-end $$;
 
+  -- Registrar lab_enrollments en tiempo real
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'lab_enrollments'
+  ) then
+    alter publication supabase_realtime add table public.lab_enrollments;
+  end if;
+end $$;
 ```
 
 ---
 
 ## Habilitar Políticas RLS (Row Level Security) - Opcional
-Si deseas proteger tu base de datos para producción, puedes habilitar RLS y añadir políticas de lectura pública y escritura solo para usuarios autenticados:
+
+Si deseas que la base de datos sea segura en producción, puedes aplicar las siguientes políticas de seguridad:
 
 ```sql
--- Habilitar RLS
+-- 1. Habilitar RLS en ambas tablas
 alter table public.lab_classes enable row level security;
+alter table public.lab_enrollments enable row level security;
 
--- Política: Cualquiera puede leer los horarios
-create policy "Permitir lectura pública"
-  on public.lab_classes for select
-  using (true);
+-- 2. Políticas para lab_classes
+create policy "Lectura pública de clases" 
+  on public.lab_classes for select using (true);
+create policy "Modificación de clases por usuarios autenticados" 
+  on public.lab_classes for all to authenticated using (true) with check (true);
 
--- Política: Solo usuarios autenticados pueden insertar/modificar/eliminar
-create policy "Permitir escritura a usuarios autenticados"
-  on public.lab_classes for all
-  to authenticated
-  using (true)
-  with check (true);
+-- 3. Políticas para lab_enrollments
+create policy "Lectura pública de inscripciones" 
+  on public.lab_enrollments for select using (true);
+create policy "Inscripción/Desinscripción para usuarios autenticados" 
+  on public.lab_enrollments for all to authenticated using (true) with check (true);
 ```
