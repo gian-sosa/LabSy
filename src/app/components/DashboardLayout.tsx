@@ -38,17 +38,55 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setIsDarkMode(storedTheme === "dark");
     }
     
-    const storedUser = localStorage.getItem("labsy_user");
-    if (!storedUser) {
-      router.push("/");
-    } else {
-      const parsed = JSON.parse(storedUser);
-      if (parsed && parsed.name) {
-        parsed.name = parsed.name.toUpperCase();
+    const syncUser = async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const user = session.user;
+          const userEmail = user.email || "";
+          const fullName = (
+            user.user_metadata?.full_name || 
+            user.user_metadata?.name || 
+            user.email?.split("@")[0] || 
+            "USUARIO SIN NOMBRE"
+          ).toUpperCase();
+          const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
+          
+          const localStored = localStorage.getItem("labsy_user");
+          let role = "estudiante";
+          if (localStored) {
+            role = JSON.parse(localStored).role || "estudiante";
+          } else {
+            if (userEmail.startsWith("admin")) {
+              role = "admin";
+            } else if (userEmail.startsWith("docente") || userEmail.startsWith("prof")) {
+              role = "docente";
+            }
+          }
+
+          const realUser = { name: fullName, email: userEmail, role, avatar: avatarUrl };
+          setCurrentUser(realUser);
+          localStorage.setItem("labsy_user", JSON.stringify(realUser));
+          setMounted(true);
+          return;
+        }
       }
-      setCurrentUser(parsed);
-    }
-    setMounted(true);
+
+      const storedUser = localStorage.getItem("labsy_user");
+      if (!storedUser) {
+        router.push("/");
+      } else {
+        const parsed = JSON.parse(storedUser);
+        if (parsed && parsed.name) {
+          parsed.name = parsed.name.toUpperCase();
+        }
+        setCurrentUser(parsed);
+      }
+      setMounted(true);
+    };
+
+    syncUser();
   }, [router]);
 
   const toggleTheme = () => {

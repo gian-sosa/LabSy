@@ -66,3 +66,33 @@ END $$;
 - **Restricción de Unicidad**: Garantiza que un correo de estudiante no se registre más de una vez en el mismo horario de laboratorio.
 - **Trigger Automatizado**: Ajusta dinámicamente la columna `vacancies` (vacantes) en `lab_classes` cada vez que un estudiante se inscribe o cancela su inscripción.
 - **Realtime**: Sincroniza al instante los cambios de vacantes e inscripciones con todos los usuarios conectados.
+
+---
+
+## Solución al error de Políticas RLS (Row Level Security)
+
+Si al matricularte recibes el error `new row violates row-level security policy for table "lab_enrollments"`, se debe a que la seguridad RLS está activa en la tabla pero no hay políticas que permitan a la aplicación realizar inserciones y eliminaciones.
+
+Para solucionarlo de forma definitiva, ejecuta el siguiente bloque SQL en el **SQL Editor** de Supabase:
+
+```sql
+-- 1. Asegurar que RLS esté habilitado
+ALTER TABLE public.lab_enrollments ENABLE ROW LEVEL SECURITY;
+
+-- 2. Eliminar políticas conflictivas anteriores si existen
+DROP POLICY IF EXISTS "Lectura pública de inscripciones" ON public.lab_enrollments;
+DROP POLICY IF EXISTS "Inscripción/Desinscripción para usuarios autenticados" ON public.lab_enrollments;
+DROP POLICY IF EXISTS "Inscripción pública" ON public.lab_enrollments;
+DROP POLICY IF EXISTS "Cancelación pública de inscripción" ON public.lab_enrollments;
+
+-- 3. Crear políticas que permitan operaciones de lectura, inserción y borrado a la aplicación
+CREATE POLICY "Lectura pública de inscripciones" 
+  ON public.lab_enrollments FOR SELECT USING (true);
+
+CREATE POLICY "Inscripción pública" 
+  ON public.lab_enrollments FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Cancelación pública de inscripción" 
+  ON public.lab_enrollments FOR DELETE USING (true);
+```
+

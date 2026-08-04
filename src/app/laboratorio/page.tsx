@@ -152,6 +152,17 @@ export default function LaboratorioPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  // Enrollment feedback states
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [enrollErrorMsg, setEnrollErrorMsg] = useState<string | null>(null);
+
+  const openDetailModal = (lab: Lab) => {
+    setSelectedLab(lab);
+    setEnrollErrorMsg(null);
+    setIsEnrolling(false);
+    setIsDetailModalOpen(true);
+  };
+
   // Form Fields
   const [formCourse, setFormCourse] = useState("");
   const [formDay, setFormDay] = useState("Lunes");
@@ -160,9 +171,40 @@ export default function LaboratorioPage() {
   const [formRoom, setFormRoom] = useState("");
   const [formTeacher, setFormTeacher] = useState("");
 
-  // Sync state
   useEffect(() => {
-    const handleUserUpdate = () => {
+    const handleUserUpdate = async () => {
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const user = session.user;
+          const userEmail = user.email || "";
+          const fullName = (
+            user.user_metadata?.full_name || 
+            user.user_metadata?.name || 
+            user.email?.split("@")[0] || 
+            "USUARIO SIN NOMBRE"
+          ).toUpperCase();
+          const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
+          
+          const localStored = localStorage.getItem("labsy_user");
+          let role = "estudiante";
+          if (localStored) {
+            role = JSON.parse(localStored).role || "estudiante";
+          } else {
+            if (userEmail.startsWith("admin")) {
+              role = "admin";
+            } else if (userEmail.startsWith("docente") || userEmail.startsWith("prof")) {
+              role = "docente";
+            }
+          }
+
+          const realUser = { name: fullName, email: userEmail, role, avatar: avatarUrl };
+          setCurrentUser(realUser);
+          localStorage.setItem("labsy_user", JSON.stringify(realUser));
+          return;
+        }
+      }
+
       const stored = localStorage.getItem("labsy_user");
       if (stored) {
         setCurrentUser(JSON.parse(stored));
@@ -171,7 +213,7 @@ export default function LaboratorioPage() {
     handleUserUpdate();
     window.addEventListener("storage", handleUserUpdate);
     return () => window.removeEventListener("storage", handleUserUpdate);
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -292,6 +334,9 @@ export default function LaboratorioPage() {
       return;
     }
 
+    setEnrollErrorMsg(null);
+    setIsEnrolling(true);
+
     if (isSupabaseEnabled && supabase) {
       if (alreadyEnrolled) {
         // Desmatricular del curso en Supabase
@@ -302,7 +347,8 @@ export default function LaboratorioPage() {
           .eq("student_email", currentUser.email);
 
         if (error) {
-          setLabsSyncMessage(`No se pudo cancelar la inscripción: ${error.message}`);
+          setEnrollErrorMsg(`No se pudo cancelar la inscripción: ${error.message}`);
+          setIsEnrolling(false);
           return;
         }
       } else {
@@ -316,16 +362,33 @@ export default function LaboratorioPage() {
           });
 
         if (error) {
-          setLabsSyncMessage(`No se pudo realizar la inscripción: ${error.message}`);
+          setEnrollErrorMsg(`No se pudo realizar la inscripción: ${error.message}`);
+          setIsEnrolling(false);
           return;
         }
       }
       
-      // El trigger en Supabase actualizará la columna vacancies en la tabla lab_classes automáticamente
-      // e informará a todos los clientes por Realtime. Actualizamos el estado local por velocidad de respuesta:
       setEnrolledLabs((previous) =>
         alreadyEnrolled ? previous.filter((id) => id !== labId) : [...previous, labId]
       );
+
+      // Actualizamos localmente el número de vacantes del horario para dar feedback inmediato sin esperar a Realtime
+      const nextVacancies = alreadyEnrolled
+        ? Math.min(target.capacity, target.vacancies + 1)
+        : Math.max(0, target.vacancies - 1);
+
+      setLabs((previous) =>
+        previous.map((lab) =>
+          lab.id === labId
+            ? { ...lab, vacancies: nextVacancies }
+            : lab
+        )
+      );
+
+      // Sincronizar el selectedLab actual si está abierto
+      if (selectedLab && selectedLab.id === labId) {
+        setSelectedLab({ ...selectedLab, vacancies: nextVacancies });
+      }
     } else {
       // Fallback local sin Supabase
       const nextVacancies = alreadyEnrolled
@@ -343,8 +406,13 @@ export default function LaboratorioPage() {
             : lab
         )
       );
+
+      if (selectedLab && selectedLab.id === labId) {
+        setSelectedLab({ ...selectedLab, vacancies: nextVacancies });
+      }
     }
     
+    setIsEnrolling(false);
     setIsDetailModalOpen(false);
   };
 
@@ -561,10 +629,7 @@ export default function LaboratorioPage() {
                               return (
                                 <div
                                   key={`${room}-${day}-${hour}`}
-                                  onClick={() => {
-                                    setSelectedLab(classAtSlot);
-                                    setIsDetailModalOpen(true);
-                                  }}
+                                  onClick={() => openDetailModal(classAtSlot)}
                                   style={{ gridRow: `span ${classAtSlot.durationHours}` }}
                                   className={`rounded-xl p-2 text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between border shadow-sm hover:scale-[1.01] ${
                                     isEnrolled
@@ -645,6 +710,12 @@ export default function LaboratorioPage() {
               </div>
             </div>
 
+            {enrollErrorMsg && (
+              <div className="text-xs bg-red-950/40 border border-red-900/50 text-red-400 p-3 rounded-xl">
+                {enrollErrorMsg}
+              </div>
+            )}
+
             <div className="flex items-center justify-between border-t border-slate-800 pt-4">
               <div>
                 <span className="text-xs text-slate-500">Vacantes Restantes</span>
@@ -667,16 +738,16 @@ export default function LaboratorioPage() {
                 {currentUser && currentUser.role === "estudiante" && (
                   <button
                     onClick={() => handleEnrollment(selectedLab.id)}
-                    disabled={selectedLab.vacancies === 0 && !enrolledLabs.includes(selectedLab.id)}
+                    disabled={isEnrolling || (selectedLab.vacancies === 0 && !enrolledLabs.includes(selectedLab.id))}
                     className={`px-6 py-3 rounded-xl text-xs font-bold transition-all ${
                       enrolledLabs.includes(selectedLab.id)
                         ? "bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20"
                         : selectedLab.vacancies === 0
                         ? "bg-slate-800 text-slate-600 cursor-not-allowed"
                         : "bg-amber-500 hover:bg-amber-400 text-slate-950"
-                    }`}
+                    } ${isEnrolling ? "opacity-50 cursor-wait" : ""}`}
                   >
-                    {enrolledLabs.includes(selectedLab.id) ? "Desmatricular" : selectedLab.vacancies === 0 ? "Sin vacantes" : "Matricularse"}
+                    {isEnrolling ? "Procesando..." : enrolledLabs.includes(selectedLab.id) ? "Desmatricular" : selectedLab.vacancies === 0 ? "Sin vacantes" : "Matricularse"}
                   </button>
                 )}
               </div>

@@ -35,8 +35,7 @@ interface LabClassRow {
 
 interface Student {
   number: number;
-  lastName: string;
-  firstName: string;
+  fullName: string;
   email: string;
 }
 
@@ -146,18 +145,15 @@ function generateEnrolledStudents(labId: number, courseName: string, totalEnroll
       
       students.push({
         number: 0, // Assigned later after sorting
-        lastName,
-        firstName,
+        fullName: `${firstName} ${lastName}`,
         email,
       });
     }
   }
 
-  // Sort alphabetically by last name, then first name
+  // Sort alphabetically by full name
   students.sort((a, b) => {
-    const nameA = `${a.lastName}, ${a.firstName}`.toUpperCase();
-    const nameB = `${b.lastName}, ${b.firstName}`.toUpperCase();
-    return nameA.localeCompare(nameB, "es");
+    return a.fullName.localeCompare(b.fullName, "es");
   });
 
   // Assign sequence numbers
@@ -275,32 +271,23 @@ export default function InscritosPage() {
 
       if (!error && data) {
         const list: Student[] = data.map((item, idx) => {
-          const nameStr = item.student_name || "";
-          let lastName = "";
-          let firstName = "";
-          if (nameStr.includes(",")) {
-            const parts = nameStr.split(",");
-            lastName = parts[0].trim();
-            firstName = parts.slice(1).join(",").trim();
-          } else {
-            const parts = nameStr.trim().split(" ");
-            if (parts.length > 1) {
-              firstName = parts[0];
-              lastName = parts.slice(1).join(" ");
-            } else {
-              firstName = nameStr;
-              lastName = "";
-            }
-          }
-
           return {
             number: idx + 1,
-            lastName,
-            firstName,
+            fullName: item.student_name || "",
             email: item.student_email,
           };
         });
-        setEnrolledStudents(list);
+
+        // Sort alphabetically by full name
+        list.sort((a, b) => a.fullName.localeCompare(b.fullName, "es"));
+
+        // Re-assign sequence numbers after sorting
+        const sortedList = list.map((student, index) => ({
+          ...student,
+          number: index + 1,
+        }));
+
+        setEnrolledStudents(sortedList);
       } else {
         const totalEnrolled = lab.capacity - lab.vacancies;
         const list = generateEnrolledStudents(lab.id, lab.course, totalEnrolled);
@@ -324,13 +311,15 @@ export default function InscritosPage() {
       [`Reporte de Alumnos Inscritos - Laboratorio: ${selectedLab.room}`],
       [`Curso: ${selectedLab.course}`],
       [`Docente: ${selectedLab.teacher}`],
+      [`Día: ${selectedLab.day}`],
+      [`Hora: ${selectedLab.startHour}:00 - ${selectedLab.startHour + selectedLab.durationHours}:00`],
       [],
-      ["N°", "Alumno (Apellidos y Nombres)", "Correo Electrónico", "Asistencia"]
+      ["N°", "Alumno", "Correo Electrónico", "Asistencia"]
     ];
 
     const studentRows = enrolledStudents.map((student, idx) => [
       idx + 1,
-      `${student.lastName}, ${student.firstName}`,
+      student.fullName,
       student.email,
       ""
     ]);
@@ -503,18 +492,16 @@ export default function InscritosPage() {
                     <thead>
                       <tr className="border-b border-slate-800 bg-slate-950 text-slate-400 font-bold uppercase tracking-wider">
                         <th className="px-4 py-3 text-center w-12">N°</th>
-                        <th className="px-4 py-3">Alumno (Apellidos y Nombres)</th>
+                        <th className="px-4 py-3">Alumno</th>
                         <th className="px-4 py-3">Correo Electrónico</th>
-                        <th className="px-4 py-3 text-center w-28">Asistencia</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-850/60">
                       {enrolledStudents.map((student) => (
                         <tr key={student.number} className="hover:bg-slate-900/40">
                           <td className="px-4 py-3 text-center font-bold text-slate-500">{student.number}</td>
-                          <td className="px-4 py-3 font-semibold text-slate-200">{student.lastName}, {student.firstName}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-200">{student.fullName}</td>
                           <td className="px-4 py-3 text-slate-400">{student.email}</td>
-                          <td className="px-4 py-3 text-center text-slate-500 italic">Por registrar</td>
                         </tr>
                       ))}
                     </tbody>
