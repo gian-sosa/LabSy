@@ -106,15 +106,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const switchRole = (role: "estudiante" | "docente" | "admin") => {
     if (!currentUser) return;
-    let name = "ESTUDIANTE SISTEMAS";
-    let email = "estudiante@sistemas.edu.pe";
-    if (role === "admin") {
-      name = "ADMINISTRADOR TI";
-      email = "admin@sistemas.edu.pe";
-    } else if (role === "docente") {
-      name = "DOCENTE PRINCIPAL";
-      email = "docente@sistemas.edu.pe";
+    
+    // Si el usuario tiene un nombre real (ej. de Google), lo mantenemos.
+    // Solo usamos nombres genéricos si el usuario actual tiene un nombre genérico de prueba o está vacío.
+    const genericNames = ["ESTUDIANTE SISTEMAS", "DOCENTE PRINCIPAL", "ADMINISTRADOR TI", "ESTUDIANTE DE PRUEBA", "USUARIO SIN NOMBRE"];
+    
+    let name = currentUser.name;
+    let email = currentUser.email;
+    
+    if (!name || genericNames.includes(name.toUpperCase())) {
+      name = "ESTUDIANTE SISTEMAS";
+      email = "estudiante@sistemas.edu.pe";
+      if (role === "admin") {
+        name = "ADMINISTRADOR TI";
+        email = "admin@sistemas.edu.pe";
+      } else if (role === "docente") {
+        name = "DOCENTE PRINCIPAL";
+        email = "docente@sistemas.edu.pe";
+      }
     }
+    
     const updatedUser = { name: name.toUpperCase(), email, role, avatar: currentUser.avatar };
     setCurrentUser(updatedUser);
     localStorage.setItem("labsy_user", JSON.stringify(updatedUser));
@@ -314,10 +325,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Footer */}
-      <footer className={`border-t py-6 text-center text-xs z-10 ${
-        isDarkMode ? "border-slate-900 text-slate-600" : "border-slate-250 text-slate-500"
+      <footer className={`flex justify-center flex-col gap-1 italic border-t py-6 text-center text-xs z-10 ${
+        isDarkMode ? "border-slate-900 text-slate-300" : "border-slate-250 text-slate-500"
       }`}>
-        <p>&copy; {new Date().getFullYear()} Escuela de Ingeniería de Sistemas. Todos los derechos reservados.</p>
+        <p>Desarrollado por Gian Carlos Mallqui Sosa </p>
+        <p>Presidente CEIS 2027</p>
       </footer>
     </div>
   );

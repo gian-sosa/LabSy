@@ -25,3 +25,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Forzar cursor pointer en elementos interactivos */
+button, 
+select, 
+a,
+input[type="button"], 
+input[type="submit"], 
+input[type="file"],
+.cursor-pointer {
+  cursor: pointer !important;
+}
