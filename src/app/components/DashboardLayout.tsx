@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -30,6 +30,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(0);
+  const [sidebarLeft, setSidebarLeft] = useState(0);
+
+  const headerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync state with localStorage
   useEffect(() => {
@@ -89,6 +94,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     syncUser();
   }, [router]);
 
+  // Medir la altura real del header fijo para alinear el sidebar sticky
+  useEffect(() => {
+    if (!mounted) return;
+    const updateHeight = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
+      }
+      // Alinear el sidebar fijo al borde izquierdo del contenido (padding de 2rem)
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setSidebarLeft(Math.round(rect.left + 32));
+      }
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    if (headerRef.current) observer.observe(headerRef.current);
+    if (containerRef.current) observer.observe(containerRef.current);
+    window.addEventListener("resize", updateHeight);
+    window.addEventListener("scroll", updateHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+      window.removeEventListener("scroll", updateHeight);
+    };
+  }, [mounted]);
+
   const toggleTheme = () => {
     const nextTheme = !isDarkMode;
     setIsDarkMode(nextTheme);
@@ -138,7 +169,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col relative overflow-hidden transition-colors duration-300 ${
+    <div className={`min-h-screen font-sans flex flex-col relative transition-colors duration-300 ${
       isDarkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-55 bg-slate-50 text-slate-900"
     }`}>
       {/* Background radial glow */}
@@ -148,10 +179,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           : "bg-gradient-to-b from-amber-500/5 via-slate-55/0 to-transparent"
       }`} />
 
-      {/* Demo role switch bar */}
-      <div className={`border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs z-20 transition-colors ${
-        isDarkMode ? "bg-slate-900 border-slate-800" : "bg-amber-500/10 border-amber-500/20 text-slate-850"
-      }`}>
+      {/* Cabecera Fija */}
+      <div ref={headerRef} className="fixed top-0 left-0 right-0 z-30 flex flex-col">
+        {/* Demo role switch bar */}
+        <div className={`border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
+          isDarkMode ? "bg-slate-900 border-slate-800" : "bg-amber-500/10 border-amber-500/20 text-slate-850"
+        }`}>
         <div className="flex items-center gap-2">
           <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
           <span className="font-semibold">Simulador de Roles (Prototipo):</span>
@@ -184,10 +217,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      {/* Header */}
-      <header className={`border-b sticky top-0 z-10 px-6 py-4 flex items-center justify-between transition-colors ${
-        isDarkMode ? "bg-slate-950/80 border-slate-900 backdrop-blur-md" : "bg-white/80 border-slate-200 backdrop-blur-md"
-      }`}>
+        {/* Header */}
+        <header className={`border-b px-6 py-4 flex items-center justify-between transition-colors ${
+          isDarkMode ? "bg-slate-950/80 border-slate-900 backdrop-blur-md" : "bg-white/80 border-slate-200 backdrop-blur-md"
+        }`}>
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 bg-linear-to-tr from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
             <GraduationCap className="h-6 w-6 text-slate-950 stroke-2" />
@@ -250,10 +283,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
+      </div>
+
       {/* Main Container */}
-      <div className="max-w-7xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col md:flex-row gap-8 flex-1 z-10">
-        {/* Left Sidebar */}
-        <aside className="w-full md:w-64 shrink-0 space-y-6">
+      <div
+        ref={containerRef}
+        className="max-w-7xl w-full mx-auto px-4 md:px-8 pb-8 flex flex-col md:flex-row gap-8 flex-1 z-10"
+        style={{ paddingTop: `${headerHeight + 32}px` }}
+      >
+        {/* Left Sidebar: fijo, no se mueve al hacer scroll */}
+        <aside
+          className="w-full md:w-64 shrink-0 self-start space-y-6 md:fixed"
+          style={{ top: `${headerHeight + 32}px`, left: `${sidebarLeft}px` }}
+        >
           <div className={`border rounded-2xl p-5 space-y-4 ${
             isDarkMode ? "bg-slate-900/60 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
           }`}>
@@ -297,7 +339,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Calendar className="h-4 w-4" />
                 Laboratorio
-                <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                 {/* animate-ping */}
               </Link>
               {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
                 <Link
@@ -319,7 +362,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </aside>
 
         {/* Dynamic content rendering */}
-        <main className="flex-1 min-w-0">
+        <main className="flex-1 min-w-0 md:pl-[18rem]">
           {children}
         </main>
       </div>

@@ -226,7 +226,7 @@ export default function InicioPage() {
   // Crear una nueva publicación
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPostText.trim() || !currentUser) return;
+    if ((!newPostText.trim() && !newPostImage) || !currentUser) return;
 
     const defaultAvatar = currentUser.role === "docente" 
       ? "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100" 
@@ -389,7 +389,7 @@ export default function InicioPage() {
 
                 <button
                   type="submit"
-                  disabled={!newPostText.trim() || isCompressing}
+                  disabled={(!newPostText.trim() && !newPostImage) || isCompressing}
                   className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:hover:bg-amber-500 text-slate-950 font-bold px-5 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5"
                 >
                   Publicar
@@ -440,7 +440,9 @@ export default function InicioPage() {
                   )}
                 </div>
 
-                <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-350 whitespace-pre-wrap">{renderContentWithLinks(post.content)}</p>
+                {post.content && (
+                  <p className="text-md leading-relaxed text-slate-800 dark:text-slate-300 whitespace-pre-wrap">{renderContentWithLinks(post.content)}</p>
+                )}
 
                 {post.image && (
                   <div 

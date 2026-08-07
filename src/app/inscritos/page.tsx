@@ -450,7 +450,7 @@ export default function InscritosPage() {
                             return (
                               <div
                                 key={`${room}-${day}-${hour}-empty`}
-                                className="rounded-xl border border-dashed border-slate-100 dark:border-slate-850/60 min-h-12"
+                                className="rounded-xl border border-dashed border-slate-100 dark:border-gray-800 min-h-12"
                               />
                             );
                           })}

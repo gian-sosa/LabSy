@@ -562,11 +562,12 @@ export default function LaboratorioPage() {
         <div className="border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 bg-white dark:bg-slate-900/60 shadow-sm transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
               <h2 className="text-lg font-bold">Matrícula de Laboratorios (Horario)</h2>
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500"></span> 
+              {/* animate-ping */}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Todos los laboratorios tienen cupo máximo de 20 vacantes y duran entre 2 a 4 horas. Horarios de Lunes a Viernes de 7:00 AM a 8:00 PM.
+              La matrícula de laboratorio estará habilitada de <span className="font-bold text-amber-500"> 10:00 AM a 1:00 PM </span> del día de hoy. Asegúrate de matricularte dentro de este horario para asegurar tu vacante.
             </p>
           </div>
 
@@ -664,7 +665,7 @@ export default function LaboratorioPage() {
                             return (
                               <div
                                 key={`${room}-${day}-${hour}-empty`}
-                                className="rounded-xl border border-dashed border-slate-100 dark:border-slate-850 min-h-12"
+                                className="rounded-xl border border-dashed border-slate-100 dark:border-gray-800 min-h-12"
                               />
                             );
                           })}
