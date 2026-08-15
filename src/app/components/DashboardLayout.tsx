@@ -140,9 +140,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
     localStorage.removeItem("labsy_user");
     if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", "/");
+      window.location.href = "/";
     }
-    router.push("/");
   };
 
   const switchRole = (role: "estudiante" | "docente" | "admin") => {
