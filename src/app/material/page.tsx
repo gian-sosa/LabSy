@@ -12,10 +12,20 @@ interface Resource {
   course: string;
   author: string;
   semester: string;
+  url?: string;
 }
 
 const INITIAL_RESOURCES: Resource[] = [
-  { id: 1, name: "Syllabus - Sistemas Distribuidos 2026", type: "pdf", size: "2.4 MB", course: "Sistemas Distribuidos", author: "Ing. David Asencios", semester: "8vo Semestre" },
+  { 
+    id: 1, 
+    name: "Análisis Matemático I", 
+    type: "pdf", 
+    size: "42.8 MB", 
+    course: "Cálculo I", 
+    author: "Eduardo Espinoza Ramos", 
+    semester: "3er ciclo",
+    url: "https://es.scribd.com/document/583258493/Analisis-Matematico-I-Eduardo-Espinoza-Ramos"
+  },
   { id: 2, name: "Guía de Laboratorio 1 - Docker y Containers", type: "pdf", size: "1.8 MB", course: "Desarrollo de Software", author: "MSc. Julio Torres", semester: "6to Semestre" },
   { id: 3, name: "Material Adicional - Redes Neuronales desde Cero", type: "zip", size: "14.5 MB", course: "Inteligencia Artificial", author: "Dra. Martha Ruiz", semester: "9no Semestre" }
 ];
@@ -145,7 +155,13 @@ export default function MaterialPage() {
           <div className="divide-y divide-slate-150 dark:divide-slate-800/80">
             {filteredResources.length > 0 ? (
               filteredResources.map((res) => (
-                <div key={res.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/5 transition-colors">
+                <div 
+                  key={res.id} 
+                  onClick={res.url ? () => window.open(res.url, "_blank") : undefined}
+                  className={`p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/5 transition-colors ${
+                    res.url ? "cursor-pointer" : ""
+                  }`}
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 bg-amber-500/10 text-amber-600 dark:text-amber-550">
                       <FileText className="h-5 w-5" />
@@ -164,7 +180,10 @@ export default function MaterialPage() {
 
                   <div className="flex items-center gap-2 shrink-0 ml-4">
                     <button
-                      onClick={() => alert(`Simulando descarga de: ${res.name}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alert(`Simulando descarga de: ${res.name}`);
+                      }}
                       className="p-2 rounded-lg transition-all flex items-center gap-2 text-xs border bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-750"
                       title="Descargar archivo"
                     >
@@ -174,7 +193,10 @@ export default function MaterialPage() {
                     
                     {currentUser && (currentUser.role === "admin" || currentUser.role === "docente") && (
                       <button
-                        onClick={() => handleDeleteResource(res.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteResource(res.id);
+                        }}
                         className="p-2 text-slate-450 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                         title="Eliminar recurso"
                       >
