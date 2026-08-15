@@ -27,6 +27,13 @@ export default function RootLayout({
       lang="es-la"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{function patch(method){var original=console[method];console[method]=function(){for(var i=0;i<arguments.length;i++){if(typeof arguments[i]==="string"&&arguments[i].indexOf("[HMR]")===0)return;}return original.apply(console,arguments);};}patch("log");patch("info");patch("debug");}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

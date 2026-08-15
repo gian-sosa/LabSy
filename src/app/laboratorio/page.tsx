@@ -272,8 +272,6 @@ export default function LaboratorioPage() {
         (payload) => {
           if (!isActive) return;
 
-          console.log("Supabase Realtime event received:", payload);
-
           if (payload.eventType === "DELETE") {
             const deleted = payload.old as LabClassRow;
             setLabs((previous) => previous.filter((lab) => lab.id !== deleted.id));
@@ -285,7 +283,6 @@ export default function LaboratorioPage() {
         }
       )
       .subscribe((status, err) => {
-        console.log(`Realtime subscription status: ${status}`, err || "");
         if (status === "CHANNEL_ERROR") {
           setLabsSyncMessage("Error de conexión en tiempo real con Supabase. Verifica políticas RLS/Replicación.");
         }

@@ -205,7 +205,6 @@ export default function InicioPage() {
       const compressedData = await compressImage(file, 1024, 1024, 0.7);
       setNewPostImage(compressedData);
     } catch (err: any) {
-      console.error(err);
       setErrorMsg(err.message || "Error al procesar la imagen.");
     } finally {
       setIsCompressing(false);

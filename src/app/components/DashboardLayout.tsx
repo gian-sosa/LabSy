@@ -12,7 +12,9 @@ import {
   Shield,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Menu,
+  X
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -32,6 +34,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mounted, setMounted] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [sidebarLeft, setSidebarLeft] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
 
   const headerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -182,7 +189,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Cabecera Fija */}
       <div ref={headerRef} className="fixed top-0 left-0 right-0 z-30 flex flex-col">
         {/* Demo role switch bar */}
-        <div className={`border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
+        <div className={`hidden border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
           isDarkMode ? "bg-slate-900 border-slate-800" : "bg-amber-500/10 border-amber-500/20 text-slate-850"
         }`}>
         <div className="flex items-center gap-2">
@@ -244,6 +251,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {isDarkMode ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
           </button>
 
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`md:hidden p-2 rounded-xl border transition-all ${
+              isDarkMode ? "bg-slate-900 border-slate-850 hover:bg-slate-800 text-slate-100" : "bg-slate-100 border-slate-200 hover:bg-slate-250 text-slate-800"
+            }`}
+            title="Menú"
+          >
+            {isSidebarOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
+          </button>
+
           <div className="hidden md:flex items-center gap-3 text-right">
             <div>
               <p className="text-sm font-semibold">{currentUser.name}</p>
@@ -272,14 +289,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
           </div>
-
-          <button
-            onClick={handleLogout}
-            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-            title="Cerrar sesión"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
         </div>
       </header>
 
@@ -289,12 +298,114 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div
         ref={containerRef}
         className="max-w-7xl w-full mx-auto px-4 md:px-8 pb-8 flex flex-col md:flex-row gap-8 flex-1 z-10"
-        style={{ paddingTop: `${headerHeight + 32}px` }}
+        style={{ paddingTop: `${headerHeight + 24}px` }}
       >
-        {/* Left Sidebar: fijo, no se mueve al hacer scroll */}
+        {/* Backdrop for mobile sidebar */}
+        <div
+          className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity duration-300 ${
+            isSidebarOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+          }`}
+          onClick={() => setIsSidebarOpen(false)}
+        />
+
+        {/* Mobile Sidebar (Drawer) */}
         <aside
-          className="w-full md:w-64 shrink-0 self-start space-y-6 md:fixed"
-          style={{ top: `${headerHeight + 32}px`, left: `${sidebarLeft}px` }}
+          className={`fixed top-0 bottom-0 left-0 z-50 w-72 max-w-[80vw] h-full transition-transform duration-300 ease-in-out md:hidden ${
+            isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className={`h-full border-r p-5 space-y-4 ${
+            isDarkMode 
+              ? "bg-slate-950 border-slate-900" 
+              : "bg-white border-slate-200"
+          }`}>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-9 w-9 bg-linear-to-tr from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
+                <GraduationCap className="h-5 w-5 text-slate-950 stroke-2" />
+              </div>
+              <div>
+                <h1 className="font-extrabold text-base tracking-tight bg-linear-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
+                  LabSy
+                </h1>
+              </div>
+            </div>
+            <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Menú Principal</h3>
+            <nav className="space-y-1">
+              <Link
+                href="/inicio"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/inicio"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-650 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                Foro de Estudiantes
+              </Link>
+              <Link
+                href="/material"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/material"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-650 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <BookOpen className="h-4 w-4" />
+                Material Académico
+              </Link>
+              <Link
+                href="/laboratorio"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/laboratorio"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-655 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <Calendar className="h-4 w-4" />
+                Laboratorio
+                <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                {/* animate-ping */}
+              </Link>
+              {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
+                <Link
+                  href="/inscritos"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                    pathname === "/inscritos"
+                      ? "bg-amber-500 text-slate-950 font-bold"
+                      : isDarkMode
+                      ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      : "text-slate-655 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <Users className="h-4 w-4" />
+                  Inscritos
+                </Link>
+              )}
+              <button
+                onClick={handleLogout}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-red-600"
+                    : "text-slate-650 hover:text-slate-900 hover:bg-red-400"
+                }`}
+              >
+                <LogOut className="h-4 w-4" />
+                Cerrar Sesión
+              </button>
+            </nav>
+          </div>
+        </aside>
+
+        {/* Desktop Sidebar (Only visible on desktop/tablet) */}
+        <aside
+          className="hidden md:block md:w-[262px] shrink-0 self-start space-y-6 md:fixed"
+          style={{ top: `${headerHeight + 24}px`, left: `${sidebarLeft}px` }}
         >
           <div className={`border rounded-2xl p-5 space-y-4 ${
             isDarkMode ? "bg-slate-900/60 border-slate-800/80" : "bg-white border-slate-200 shadow-sm"
@@ -339,8 +450,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Calendar className="h-4 w-4" />
                 Laboratorio
+                {/* animate-ping */}
                 <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-                 {/* animate-ping */}
               </Link>
               {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
                 <Link
@@ -357,6 +468,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   Inscritos
                 </Link>
               )}
+              <button
+                onClick={handleLogout}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-red-600"
+                    : "text-slate-650 hover:text-slate-900 hover:bg-red-400"
+                }`}
+              >
+                <LogOut className="h-4 w-4" />
+                Cerrar Sesión
+              </button>
             </nav>
           </div>
         </aside>
@@ -368,8 +490,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Footer */}
-      <footer className={`flex justify-center flex-col gap-1 italic border-t py-6 text-center text-xs z-10 ${
-        isDarkMode ? "border-slate-900 text-slate-300" : "border-slate-250 text-slate-500"
+      <footer className={`flex justify-center flex-col gap-1 italic border-t py-6 text-center text-xs z-1 backdrop-blur-md ${
+        isDarkMode ? "border-gray-700 text-slate-200" : "border-slate-200 text-slate-500 bg-white/80"
       }`}>
         <p>Desarrollado por Gian Carlos Mallqui Sosa </p>
         <p>Presidente CEIS 2027</p>
