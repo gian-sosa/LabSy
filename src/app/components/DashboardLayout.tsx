@@ -329,7 +329,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </h1>
               </div>
             </div>
-            <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>Menú Principal</h3>
+            <h3 className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}>-</h3>
             <nav className="space-y-1">
               <Link
                 href="/inicio"
