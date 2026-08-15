@@ -139,6 +139,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       await supabase.auth.signOut({ scope: 'local' });
     }
     localStorage.removeItem("labsy_user");
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/");
+    }
     router.push("/");
   };
 
