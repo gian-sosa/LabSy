@@ -277,7 +277,7 @@ export default function MaterialPage() {
                     className="w-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-955 rounded-xl px-3 py-2 text-xs outline-none focus:border-amber-500 text-slate-800 dark:text-slate-300 transition-colors"
                   >
                     <option value="Libro">Libro</option>
-                    <option value="Silabo">Sílabo</option>
+                    <option value="Sílabo">Sílabo</option>
                     <option value="Examen">Examen</option>
                   </select>
                 </div>
@@ -372,7 +372,7 @@ export default function MaterialPage() {
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${
-                      res.type?.toLowerCase() === "silabo"
+                      res.type?.toLowerCase() === "sílabo"
                         ? "bg-red-500/10 text-red-600 dark:text-red-505"
                         : res.type?.toLowerCase() === "examen"
                         ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-505"
@@ -429,7 +429,7 @@ export default function MaterialPage() {
                             className="border rounded-lg px-2 py-1 text-xs bg-slate-100 dark:bg-slate-955 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 outline-none focus:border-amber-500"
                           >
                             <option value="Libro">Libro</option>
-                            <option value="Silabo">Sílabo</option>
+                            <option value="Sílabo">Sílabo</option>
                             <option value="Examen">Examen</option>
                           </select>
                           <input
@@ -450,7 +450,7 @@ export default function MaterialPage() {
                           <span>{res.semester}</span>
                           <span>•</span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                            res.type?.toLowerCase() === "silabo"
+                            res.type?.toLowerCase() === "sílabo"
                               ? "bg-red-500/10 text-red-600 dark:text-red-400"
                               : res.type?.toLowerCase() === "examen"
                               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-450"
