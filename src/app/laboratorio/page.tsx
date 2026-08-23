@@ -145,7 +145,7 @@ export default function LaboratorioPage() {
   const [labsSyncMessage, setLabsSyncMessage] = useState<string>(
     supabase ? "Conectando horarios con Supabase..." : "Modo local activo. Agrega tus keys de Supabase para persistencia."
   );
-  
+  const [labsSyncTime, setLabsSyncTime] = useState<string>(new Date().toLocaleTimeString());
   // Modals / Editing States
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -170,6 +170,7 @@ export default function LaboratorioPage() {
   const [formDuration, setFormDuration] = useState(3);
   const [formRoom, setFormRoom] = useState("");
   const [formTeacher, setFormTeacher] = useState("");
+  const [formVacancies, setFormVacancies] = useState<number | "">("");
 
   useEffect(() => {
     const handleUserUpdate = async () => {
@@ -247,8 +248,7 @@ export default function LaboratorioPage() {
 
       setLabs(data.map(toLab));
       setIsSupabaseEnabled(true);
-      setLabsSyncMessage("Horarios sincronizados con Supabase");
-
+      setLabsSyncMessage("Vacantes actualizadas en vivo a las ");
       // Cargar inscripciones reales del usuario desde la BD
       if (currentUser) {
         const { data: enrollments, error: enrollError } = await supabase
@@ -293,6 +293,14 @@ export default function LaboratorioPage() {
       channel.unsubscribe();
     };
   }, [supabase, currentUser]);
+
+  // Reloj local en vivo (HH:MM:SS)
+  useEffect(() => {
+    const clock = setInterval(() => {
+      setLabsSyncTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(clock);
+  }, []);
 
   // Live real-time vacancies fluctuation simulator
   useEffect(() => {
@@ -414,12 +422,13 @@ export default function LaboratorioPage() {
   };
 
   const openCreateModal = () => {
-    setFormCourse(COURSE_POOL[0]);
+    setFormCourse("");
     setFormDay("Lunes");
     setFormStartHour(8);
     setFormDuration(3);
     setFormRoom(SCHOOL_LABS[0].room);
-    setFormTeacher(TEACHER_POOL[0]);
+    setFormTeacher("");
+    setFormVacancies("");
     setIsCreateModalOpen(true);
   };
 
@@ -433,9 +442,27 @@ export default function LaboratorioPage() {
       durationHours: Number(formDuration),
       room: formRoom,
       teacher: formTeacher,
-      capacity: 20,
-      vacancies: 20
+      capacity: Number(formVacancies),
+      vacancies: Number(formVacancies)
     };
+
+    // Validar cruce de horarios en el mismo laboratorio
+    const newStart = Number(formStartHour);
+    const newEnd = newStart + Number(formDuration);
+    const conflict = labs.find(
+      (lab) =>
+        lab.room === formRoom &&
+        lab.day === formDay &&
+        newStart < lab.startHour + lab.durationHours &&
+        lab.startHour < newEnd
+    );
+
+    if (conflict) {
+      alert(
+        `Ya existe un curso en ${getLabNameByRoom(formRoom)} el ${formDay} de ${conflict.startHour}:00 a ${conflict.startHour + conflict.durationHours}:00 (${conflict.course}). Elige otro horario.`
+      );
+      return;
+    }
 
     if (isSupabaseEnabled && supabase) {
       const { data, error } = await supabase
@@ -536,9 +563,9 @@ export default function LaboratorioPage() {
 
   const dayIndex = (day: string) => DAYS_OF_WEEK.indexOf(day);
   const getVacancyColorClass = (vacancies: number) => {
-    if (vacancies === 0) return "text-red-500";
-    if (vacancies <= 10) return "text-amber-500";
-    return "text-emerald-500 dark:text-emerald-400";
+    if (vacancies === 0) return "text-red-600";
+    if (vacancies <= 9) return "text-amber-600";
+    return "text-blue-700";
   };
   const laboratorySchedules = SCHOOL_LABS.map(({ name, room }) => ({
     name,
@@ -559,9 +586,7 @@ export default function LaboratorioPage() {
         <div className="border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 bg-white dark:bg-slate-900/60 shadow-sm transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Matrícula de Laboratorios (Horario)</h2>
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500"></span> 
-              {/* animate-ping */}
+              <h2 className="text-lg font-bold">Matrícula de Laboratorios (2026-II)</h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               La matrícula de laboratorio estará habilitada de <span className="font-bold text-amber-500"> 10:00 AM a 1:00 PM </span> del día de hoy. Asegúrate de matricularte dentro de este horario para asegurar tu vacante.
@@ -578,15 +603,23 @@ export default function LaboratorioPage() {
             </button>
           )}
         </div>
-
-        <div className="text-xs rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 text-slate-600 dark:text-slate-350">
-          {labsSyncMessage}
+        <div className="text-xs rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-900/40 px-4 py-2 text-slate-600 dark:text-slate-350 flex items-center gap-2">
+          <span>
+            {labsSyncMessage}
+            {isSupabaseEnabled && <span className="tabular-nums">{labsSyncTime}</span>}
+          </span>
+          {isSupabaseEnabled && (
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+            </span>
+          )}
         </div>
 
         {/* Laboratory schedules (calendar mode) */}
         <div className="space-y-4">
           {laboratorySchedules.map(({ name, room, schedules }) => (
-            <section key={room} className="border border-slate-250 dark:border-slate-800/80 rounded-2xl bg-white dark:bg-slate-900/60 shadow-sm transition-all p-4">
+            <section key={room} className="border border-slate-200 dark:border-slate-800/80 rounded-2xl bg-white dark:bg-slate-900/60 shadow-sm transition-all p-4">
               <div className="pb-3 border-b border-slate-100 dark:border-slate-800/80">
                 <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">{name}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Salón {room} · {schedules.length} clases</p>
@@ -629,12 +662,12 @@ export default function LaboratorioPage() {
                                   key={`${room}-${day}-${hour}`}
                                   onClick={() => openDetailModal(classAtSlot)}
                                   style={{ gridRow: `span ${classAtSlot.durationHours}` }}
-                                  className={`rounded-xl p-2 text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between border shadow-sm hover:scale-[1.01] ${
+                                  className={`rounded-xl p-2 text-left transition-colors cursor-pointer relative overflow-hidden flex flex-col justify-between border shadow-sm ${
                                     isEnrolled
-                                      ? "bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-400"
+                                      ? "bg-blue-50 dark:blue:bg-blue-200 text-slate-950 border-blue-400 hover:bg-blue-100"
                                       : isFull
                                       ? "bg-red-500/10 border-red-500/30 text-red-500 dark:bg-red-950/20"
-                                      : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-850 hover:border-amber-500/50"
+                                      : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-blue-900 hover:border-blue-500"
                                   }`}
                                 >
                                   <div>
@@ -642,12 +675,12 @@ export default function LaboratorioPage() {
                                     <p className={`text-[10px] mt-1 truncate ${isEnrolled ? "text-slate-900" : "text-slate-500 dark:text-slate-400"}`}>
                                       {classAtSlot.teacher}
                                     </p>
-                                  </div>
-                                  <div className="mt-2 space-y-0.5">
                                     <p className={`text-[10px] font-bold ${isEnrolled ? "text-slate-900" : "text-slate-500 dark:text-slate-400"}`}>
                                       {classAtSlot.startHour}:00 - {classAtSlot.startHour + classAtSlot.durationHours}:00
                                     </p>
-                                    <p className={`text-[10px] font-black ${vacancyColorClass}`}>
+                                  </div>
+                                  <div className="mt-2 space-y-0.5">
+                                    <p className={`text-[10px] text-center font-bold bg-blue-500/10 px-2 py-0.5 rounded-md ${vacancyColorClass}`}>
                                       Vacantes: {classAtSlot.vacancies}
                                     </p>
                                   </div>
@@ -682,29 +715,29 @@ export default function LaboratorioPage() {
       {/* DETAIL MODAL */}
       {isDetailModalOpen && selectedLab && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-slate-100">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-6 space-y-6 text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100">
             <div>
               <div className="flex justify-between items-start">
                 <span className="text-xs text-amber-500 font-bold uppercase tracking-widest">{selectedLab.room}</span>
-                <button onClick={() => setIsDetailModalOpen(false)} className="text-slate-400 hover:text-slate-200">✕</button>
+                <button onClick={() => setIsDetailModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">✕</button>
               </div>
-              <h3 className="text-lg font-bold mt-1 text-slate-100">{selectedLab.name}</h3>
-              <p className="text-xs text-slate-400">{selectedLab.course}</p>
+              <h3 className="text-lg font-bold mt-1 text-slate-900 dark:text-slate-300">{selectedLab.name}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{selectedLab.course}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm bg-slate-950 p-4 rounded-2xl border border-slate-850">
+            <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-2xl border border-slate-300 dark:bg-slate-950 dark:border-slate-700">
               <div>
-                <span className="text-[10px] text-slate-500 block">Horario</span>
-                <span className="font-semibold text-slate-350">{selectedLab.day}</span>
-                <span className="block text-xs text-slate-450">{selectedLab.startHour}:00 - {selectedLab.startHour + selectedLab.durationHours}:00</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Horario</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedLab.day}</span>
+                <span className="block text-xs text-slate-600 dark:text-slate-400">{selectedLab.startHour}:00 - {selectedLab.startHour + selectedLab.durationHours}:00</span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-500 block">Duración</span>
-                <span className="font-semibold text-slate-350">{selectedLab.durationHours} horas</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">Duración</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedLab.durationHours} horas</span>
               </div>
-              <div className="col-span-2 border-t border-slate-850 pt-2.5 mt-1">
+              <div className="col-span-2 border-t border-slate-300 dark:border-slate-700 pt-2.5 mt-1">
                 <span className="text-[10px] text-slate-500 block">Docente</span>
-                <span className="font-semibold text-slate-300">{selectedLab.teacher}</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{selectedLab.teacher}</span>
               </div>
             </div>
 
@@ -714,7 +747,7 @@ export default function LaboratorioPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+            <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-4">
               <div>
                 <span className="text-xs text-slate-500">Vacantes Restantes</span>
                 <span className={`block text-lg font-black ${getVacancyColorClass(selectedLab.vacancies)}`}>
@@ -726,7 +759,7 @@ export default function LaboratorioPage() {
                 {currentUser && (currentUser.role === "admin" || currentUser.role === "docente") && (
                   <button
                     onClick={() => openEditModal(selectedLab)}
-                    className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 transition-all border border-slate-750"
+                    className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 transition-all border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-500"
                     title="Editar Horario"
                   >
                     <Edit2 className="h-4 w-4" />
@@ -741,7 +774,7 @@ export default function LaboratorioPage() {
                       enrolledLabs.includes(selectedLab.id)
                         ? "bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20"
                         : selectedLab.vacancies === 0
-                        ? "bg-slate-800 text-slate-600 cursor-not-allowed"
+                        ? "bg-slate-200 text-slate-500 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600"
                         : "bg-amber-500 hover:bg-amber-400 text-slate-950"
                     } ${isEnrolling ? "opacity-50 cursor-wait" : ""}`}
                   >
@@ -757,7 +790,7 @@ export default function LaboratorioPage() {
       {/* CREATE LAB MODAL */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleCreateLab} className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 text-slate-100">
+          <form onSubmit={handleCreateLab} className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-6 space-y-4 text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100">
             <div className="flex justify-between items-center">
               <h3 className="text-md font-bold">Crear Horario de Laboratorio</h3>
               <button type="button" onClick={() => setIsCreateModalOpen(false)} className="text-slate-400">✕</button>
@@ -765,13 +798,13 @@ export default function LaboratorioPage() {
 
             <div className="space-y-3">
             <div>
-              <label className="text-[10px] text-slate-400 block font-semibold mb-1">Curso</label>
+              <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Curso</label>
               <input
                 type="text"
                 list="course-options"
                 value={formCourse}
                 onChange={(e) => setFormCourse(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                 required
               />
               <datalist id="course-options">
@@ -783,21 +816,21 @@ export default function LaboratorioPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Día</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Día</label>
                   <select
                     value={formDay}
                     onChange={(e) => setFormDay(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-555"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 outline-none focus:border-amber-555"
                   >
                     {DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Hora Inicio</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Hora Inicio</label>
                   <select
                     value={formStartHour}
                     onChange={(e) => setFormStartHour(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-555"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 outline-none focus:border-amber-555"
                   >
                     {HOURS_RANGE.map(h => <option key={h} value={h}>{h}:00</option>)}
                   </select>
@@ -806,11 +839,11 @@ export default function LaboratorioPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Duración (Horas)</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Duración (Horas)</label>
                   <select
                     value={formDuration}
                     onChange={(e) => setFormDuration(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-555"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 outline-none focus:border-amber-555"
                   >
                     <option value={2}>2 Horas</option>
                     <option value={3}>3 Horas</option>
@@ -818,11 +851,11 @@ export default function LaboratorioPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Laboratorio / Aula</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Laboratorio / Aula</label>
                   <select
                     value={formRoom}
                     onChange={(e) => setFormRoom(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   >
                     {SCHOOL_LABS.map((lab) => (
                       <option key={lab.room} value={lab.room}>
@@ -834,13 +867,26 @@ export default function LaboratorioPage() {
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block font-semibold mb-1">Docente Encargado</label>
+                <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Vacantes Disponibles</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={formVacancies}
+                  onChange={(e) => setFormVacancies(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="Ej. 20"
+                  className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Docente Encargado</label>
                 <input
                   type="text"
                   list="teacher-options"
                   value={formTeacher}
                   onChange={(e) => setFormTeacher(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                  className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   required
                 />
                 <datalist id="teacher-options">
@@ -864,7 +910,7 @@ export default function LaboratorioPage() {
       {/* EDIT LAB MODAL */}
       {isEditModalOpen && selectedLab && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleEditLab} className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 space-y-4 text-slate-100">
+          <form onSubmit={handleEditLab} className="bg-white border border-slate-200 rounded-3xl w-full max-w-md p-6 space-y-4 text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100">
             <div className="flex justify-between items-center">
               <h3 className="text-md font-bold">Configurar Horario</h3>
               <button type="button" onClick={() => setIsEditModalOpen(false)} className="text-slate-400">✕</button>
@@ -872,13 +918,13 @@ export default function LaboratorioPage() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] text-slate-400 block font-semibold mb-1">Curso</label>
+                <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Curso</label>
                 <input
                   type="text"
                   list="course-options"
                   value={formCourse}
                   onChange={(e) => setFormCourse(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                  className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   required
                 />
                 <datalist id="course-options">
@@ -890,21 +936,21 @@ export default function LaboratorioPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Día</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Día</label>
                   <select
                     value={formDay}
                     onChange={(e) => setFormDay(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-555"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none focus:border-amber-555"
                   >
                     {DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Hora Inicio</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Hora Inicio</label>
                   <select
                     value={formStartHour}
                     onChange={(e) => setFormStartHour(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-555"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none focus:border-amber-555"
                   >
                     {HOURS_RANGE.map(h => <option key={h} value={h}>{h}:00</option>)}
                   </select>
@@ -913,11 +959,11 @@ export default function LaboratorioPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Duración (Horas)</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Duración (Horas)</label>
                   <select
                     value={formDuration}
                     onChange={(e) => setFormDuration(Number(e.target.value))}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-555"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none focus:border-amber-555"
                   >
                     <option value={2}>2 Horas</option>
                     <option value={3}>3 Horas</option>
@@ -925,11 +971,11 @@ export default function LaboratorioPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-400 block font-semibold mb-1">Laboratorio / Aula</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Laboratorio / Aula</label>
                   <select
                     value={formRoom}
                     onChange={(e) => setFormRoom(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                    className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   >
                     {SCHOOL_LABS.map((lab) => (
                       <option key={lab.room} value={lab.room}>
@@ -941,13 +987,13 @@ export default function LaboratorioPage() {
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block font-semibold mb-1">Docente</label>
+                <label className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold mb-1">Docente</label>
                 <input
                   type="text"
                   list="teacher-options"
                   value={formTeacher}
                   onChange={(e) => setFormTeacher(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
+                  className="w-full bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-350 focus:border-amber-555 outline-none"
                   required
                 />
                 <datalist id="teacher-options">

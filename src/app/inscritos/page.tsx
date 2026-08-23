@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import DashboardLayout from "../components/DashboardLayout";
 import { Calendar, Download, Users, X, Info } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 interface Lab {
   id: number;
@@ -306,40 +306,141 @@ export default function InscritosPage() {
     const courseSanitized = selectedLab.course.replace(/[^a-zA-Z0-9]/g, "_");
     const fileName = `inscritos_${selectedLab.room}_${courseSanitized}.xlsx`;
 
-    const headerInfo = [
-      ["PORTAL ACADÉMICO LABSY"],
-      [`Reporte de Alumnos Inscritos - Laboratorio: ${selectedLab.room}`],
-      [`Curso: ${selectedLab.course}`],
-      [`Docente: ${selectedLab.teacher}`],
-      [`Día: ${selectedLab.day}`],
-      [`Hora: ${selectedLab.startHour}:00 - ${selectedLab.startHour + selectedLab.durationHours}:00`],
-      [],
-      ["N°", "Alumno", "Correo Electrónico", "Asistencia"]
+    const BORDER_COLOR = "FFCBD5E1";
+    const thinBorder = (color: string = BORDER_COLOR) => ({
+      top: { style: "thin" as const, color: { rgb: color } },
+      bottom: { style: "thin" as const, color: { rgb: color } },
+      left: { style: "thin" as const, color: { rgb: color } },
+      right: { style: "thin" as const, color: { rgb: color } },
+    });
+
+    const titleStyle = {
+      font: { bold: true, sz: 16, name: "Calibri", color: { rgb: "FF0F172A" } },
+      alignment: { horizontal: "center", vertical: "center" },
+    };
+    const metaLabelStyle = {
+      font: { bold: true, sz: 10, name: "Calibri", color: { rgb: "FFB45309" } },
+      alignment: { horizontal: "right", vertical: "center" },
+    };
+    const metaValueStyle = {
+      font: { sz: 10, name: "Calibri", color: { rgb: "FF334155" } },
+      alignment: { horizontal: "left", vertical: "center" },
+    };
+    const tableHeaderStyle = {
+      font: { bold: true, sz: 11, name: "Calibri", color: { rgb: "FF0F172A" } },
+      fill: { patternType: "solid", fgColor: { rgb: "FFFBBF24" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: thinBorder("FFEAB308"),
+    };
+    const bodyStyle = (zebra: boolean) => ({
+      font: { sz: 10, name: "Calibri", color: { rgb: "FF1E293B" } },
+      fill: zebra ? { patternType: "solid", fgColor: { rgb: "FFF8FAFC" } } : undefined,
+      alignment: {
+        horizontal: "left",
+        vertical: "center",
+        indent: 1,
+      },
+      border: thinBorder(),
+    });
+    const footerStyle = {
+      font: { italic: true, sz: 9, name: "Calibri", color: { rgb: "FF94A3B8" } },
+      alignment: { horizontal: "center", vertical: "center" },
+    };
+
+    const META_ROWS: Array<[string, string]> = [
+      ["Laboratorio:", `${selectedLab.name} (${selectedLab.room})`],
+      ["Curso:", selectedLab.course],
+      ["Docente:", selectedLab.teacher],
+      ["Día:", selectedLab.day],
+      ["Horario:", `${selectedLab.startHour}:00 - ${selectedLab.startHour + selectedLab.durationHours}:00`],
+      ["Inscritos:", String(enrolledStudents.length)],
     ];
+
+    // Layout: fila 0 título, filas 1-5 metadatos, fila 6 vacía,
+    // fila 7 encabezado de tabla, luego alumnos, y pie al final
+    const META_START = 1;
+    const headerRow = META_START + META_ROWS.length + 1;
+    const firstStudentRow = headerRow + 1;
+    const lastStudentRow = firstStudentRow + enrolledStudents.length - 1;
+    const footerRow = Math.max(lastStudentRow, firstStudentRow) + 2;
 
     const studentRows = enrolledStudents.map((student, idx) => [
       idx + 1,
       student.fullName,
       student.email,
-      ""
+      "",
     ]);
 
-    const footer = [
-      [],
-      ["Labsy - Desarrollado por CEIS 2027"]
-    ];
+    const aoa: Array<Array<string | number>> = [];
+    aoa[0] = ["LABSY · REPORTE DE ALUMNOS INSCRITOS"];
+    for (let i = 0; i < META_ROWS.length; i++) {
+      aoa[META_START + i] = [META_ROWS[i][0], META_ROWS[i][1], "", ""];
+    }
+    aoa[headerRow] = ["N°", "Alumno", "Correo Electrónico", "Asistencia"];
 
-    const aoa = [...headerInfo, ...studentRows, ...footer];
-    const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+    for (let i = 0; i < enrolledStudents.length; i++) {
+      aoa[firstStudentRow + i] = studentRows[i];
+    }
+    aoa[footerRow] = ["Labsy - Desarrollado por CEIS 2027", "", "", ""];
+
+    const rowCount = footerRow + 1;
+    const worksheet = XLSX.utils.aoa_to_sheet(
+      Array.from({ length: rowCount }, (_, i) => aoa[i] ?? [])
+    );
+
+    // Estilos por zona
+    const range = XLSX.utils.decode_range(worksheet["!ref"] as string);
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!worksheet[addr]) continue;
+        if (R === 0) {
+          worksheet[addr].s = titleStyle;
+        } else if (R >= META_START && R < headerRow - 1) {
+          worksheet[addr].s =
+            C === 0 || C === 2 ? metaLabelStyle : metaValueStyle;
+        } else if (R === headerRow) {
+          worksheet[addr].s = tableHeaderStyle;
+        } else if (R >= firstStudentRow && R <= lastStudentRow) {
+          const zebra = (R - firstStudentRow) % 2 === 1;
+          const base = bodyStyle(zebra);
+          worksheet[addr].s =
+            C === 0 || C === 3
+              ? { ...base, alignment: { ...base.alignment, horizontal: "center" as const } }
+              : base;
+        } else if (R === footerRow) {
+          worksheet[addr].s = footerStyle;
+        }
+      }
+    }
+
+    // Combinar celdas
+    worksheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+      ...META_ROWS.map((_, i) => [
+        { s: { r: META_START + i, c: 0 }, e: { r: META_START + i, c: 0 } },
+        { s: { r: META_START + i, c: 1 }, e: { r: META_START + i, c: 3 } },
+      ]).flat(),
+      { s: { r: footerRow, c: 0 }, e: { r: footerRow, c: 3 } },
+    ];
 
     worksheet["!cols"] = [
-      { wch: 6 },
-      { wch: 45 },
-      { wch: 35 },
-      { wch: 15 }
+      { wch: 12 },
+      { wch: 42 },
+      { wch: 38 },
+      { wch: 14 },
+    ];
+    worksheet["!rows"] = [
+      { hpt: 26 },
+      ...META_ROWS.map(() => ({ hpt: 16 })),
+      {},
+      { hpt: 20 },
+      ...enrolledStudents.map(() => ({ hpt: 17 })),
+      {},
+      { hpt: 16 },
     ];
 
-    worksheet["!views"] = [{ showGridLines: true }];
+    worksheet["!views"] = [{ showGridLines: false }];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Inscritos");
@@ -423,19 +524,19 @@ export default function InscritosPage() {
                                   key={`${room}-${day}-${hour}`}
                                   onClick={() => handleLabClick(classAtSlot)}
                                   style={{ gridRow: `span ${classAtSlot.durationHours}` }}
-                                  className="rounded-xl p-3 text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-850 hover:border-amber-500/70 hover:scale-[1.01] shadow-xs"
+                                  className="rounded-xl p-3 text-left transition-colors cursor-pointer relative overflow-hidden flex flex-col justify-between border bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-850 hover:border-blue-500/70 shadow-xs"
                                 >
                                   <div>
                                     <h4 className="font-extrabold text-[11px] leading-tight text-slate-800 dark:text-slate-200">{classAtSlot.course}</h4>
                                     <p className="text-[10px] mt-1 truncate text-slate-500 dark:text-slate-400">
                                       {classAtSlot.teacher}
                                     </p>
-                                  </div>
-                                  <div className="mt-3 flex items-center justify-between">
                                     <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
                                       {classAtSlot.startHour}:00 - {classAtSlot.startHour + classAtSlot.durationHours}:00
                                     </p>
-                                    <span className="text-[10px] font-bold bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-md">
+                                  </div>
+                                  <div className="mt-3 flex flex-col justify-between">
+                                    <span className="text-[10px] text-center font-bold bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded-md">
                                       Inscritos: {totalEnrolled}
                                     </span>
                                   </div>
@@ -470,16 +571,16 @@ export default function InscritosPage() {
       {/* STUDENT ENROLLMENTS MODAL */}
       {isStudentModalOpen && selectedLab && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl p-6 space-y-6 text-slate-100 max-h-[85vh] flex flex-col shadow-2xl">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl p-6 space-y-6 text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex justify-between items-start shrink-0">
               <div>
                 <span className="text-xs text-amber-500 font-bold uppercase tracking-widest">{selectedLab.room} · {selectedLab.name}</span>
                 <h3 className="text-xl font-black mt-1">{selectedLab.course}</h3>
-                <p className="text-xs text-slate-450 mt-1">Docente: {selectedLab.teacher}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-450 mt-1">Docente: {selectedLab.teacher}</p>
               </div>
               <button 
                 onClick={() => setIsStudentModalOpen(false)} 
-                className="p-1.5 hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-200"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -487,43 +588,43 @@ export default function InscritosPage() {
 
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {enrolledStudents.length > 0 ? (
-                <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/50">
+                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/50">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-800 bg-slate-950 text-slate-400 font-bold uppercase tracking-wider">
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
                         <th className="px-4 py-3 text-center w-12">N°</th>
                         <th className="px-4 py-3">Alumno</th>
                         <th className="px-4 py-3">Correo Electrónico</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-850/60">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850/60">
                       {enrolledStudents.map((student) => (
-                        <tr key={student.number} className="hover:bg-slate-900/40">
-                          <td className="px-4 py-3 text-center font-bold text-slate-500">{student.number}</td>
-                          <td className="px-4 py-3 font-semibold text-slate-200">{student.fullName}</td>
-                          <td className="px-4 py-3 text-slate-400">{student.email}</td>
+                        <tr key={student.number} className="hover:bg-slate-100/60 dark:hover:bg-slate-900/40">
+                          <td className="px-4 py-3 text-center font-bold text-slate-500 dark:text-slate-500">{student.number}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">{student.fullName}</td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{student.email}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-12 border border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
+                <div className="text-center py-12 border border-dashed border-slate-300 rounded-2xl bg-slate-50/20 dark:border-slate-800 dark:bg-slate-950/20">
                   <Info className="h-8 w-8 text-slate-500 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-slate-450">No hay alumnos inscritos</p>
+                  <p className="text-sm font-semibold text-slate-600 dark:text-slate-450">No hay alumnos inscritos</p>
                   <p className="text-xs text-slate-550 mt-1">Este horario tiene todas sus vacantes libres.</p>
                 </div>
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-800 shrink-0">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
               <span className="text-xs text-slate-400">
                 Total matriculados: <strong className="text-amber-500 font-black">{enrolledStudents.length}</strong> alumnos.
               </span>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => setIsStudentModalOpen(false)}
-                  className="flex-1 sm:flex-none border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold px-5 py-2.5 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"
+                  className="flex-1 sm:flex-none border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold px-5 py-2.5 rounded-xl text-xs transition-all active:scale-[0.98] cursor-pointer"
                 >
                   Cerrar
                 </button>

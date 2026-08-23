@@ -40,6 +40,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setIsSidebarOpen(false);
   }, [pathname]);
 
+  // Sincroniza la clase dark con <html> para que las variantes dark: de Tailwind funcionen
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+  }, [isDarkMode]);
+
   const headerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -191,7 +196,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Cabecera Fija */}
       <div ref={headerRef} className="fixed top-0 left-0 right-0 z-30 flex flex-col">
         {/* Demo role switch bar */}
-        <div className={` hidden border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
+        <div className={`  border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
           isDarkMode ? "bg-slate-900 border-slate-800" : "bg-amber-500/10 border-amber-500/20 text-slate-850"
         }`}>
         <div className="flex items-center gap-2">
@@ -267,8 +272,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div>
               <p className="text-sm font-semibold">{currentUser.name}</p>
               <div className="flex items-center gap-1.5 justify-end">
-                {currentUser.role === "admin" && <Shield className="h-3 w-3 text-red-500" />}
-                {currentUser.role === "docente" && <Sparkles className="h-3 w-3 text-amber-500" />}
+                {currentUser.role === "admin"}
+                {currentUser.role === "docente"}
                 <span className={`text-[10px] uppercase font-bold tracking-wider ${
                   currentUser.role === "admin" ? "text-red-400" : currentUser.role === "docente" ? "text-amber-450" : "text-amber-550"
                 }`}>
@@ -453,7 +458,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Calendar className="h-4 w-4" />
                 Laboratorio
                 {/* animate-ping */}
-                <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                <span className="ml-auto inline-flex relative text-[10px] font-semibold text-black px-3 py-0.5 rounded-xl border border-emerald-600 bg-green-400 text-emerald-450">
+                  On-line
+                </span>
               </Link>
               {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
                 <Link
