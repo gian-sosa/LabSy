@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import DashboardLayout from "../components/DashboardLayout";
 import { Share2, Trash2, Heart, MessageSquare, Image as ImageIcon, X, Loader2 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -23,9 +23,9 @@ const INITIAL_POSTS: Post[] = [];
 // Algoritmo de compresión de imágenes
 const compressImage = (
   file: File,
-  maxWidth = 1024,
-  maxHeight = 1024,
-  quality = 0.7
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.85
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith("image/")) {
@@ -126,10 +126,16 @@ export default function InicioPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostText, setNewPostText] = useState("");
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [imageScale, setImageScale] = useState(1);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [newPostImage, setNewPostImage] = useState("");
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = getSupabaseBrowserClient();
 
@@ -187,6 +193,87 @@ export default function InicioPage() {
     return () => window.removeEventListener("storage", handleUserUpdate);
   }, [supabase]);
 
+  // Cerrar lightbox con tecla Escape y resetear zoom
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (zoomedImage) {
+          setZoomedImage(null);
+          setImageScale(1);
+          setImageOffset({ x: 0, y: 0 });
+        }
+        if (deleteConfirmId !== null) {
+          setDeleteConfirmId(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [zoomedImage, deleteConfirmId]);
+
+  // Bloquear scroll del body y zoom con rueda del ratón cuando lightbox abierto
+  useEffect(() => {
+    if (!zoomedImage) return;
+    document.body.style.overflow = "hidden";
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("wheel", handleWheel);
+    };
+  }, [zoomedImage]);
+
+  // Zoom centrado con rueda del ratón (mínimo 100%, centrado gradual al alejar)
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const zoomingIn = e.deltaY < 0;
+
+    setImageScale(prev => {
+      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      const newScale = Math.min(Math.max(prev + delta, 1), 5);
+      setImageOffset(offset => {
+        if (newScale <= 1) return { x: 0, y: 0 };
+        if (zoomingIn) return offset;
+        const t = (newScale - 1) / 4;
+        const progress = Math.sqrt(t);
+        return {
+          x: offset.x * progress,
+          y: offset.y * progress
+        };
+      });
+      return newScale;
+    });
+  }, []);
+
+  // Drag handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - imageOffset.x, y: e.clientY - imageOffset.y });
+  }, [imageOffset]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setImageOffset({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  }, [isDragging, dragStart]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Reset zoom al abrir nueva imagen
+  const openZoom = (src: string) => {
+    setZoomedImage(src);
+    setImageScale(1);
+    setImageOffset({ x: 0, y: 0 });
+  };
+
   // Guardar publicaciones en localStorage al cambiar
   const savePosts = (updatedPosts: Post[]) => {
     setPosts(updatedPosts);
@@ -202,7 +289,7 @@ export default function InicioPage() {
     setErrorMsg("");
     try {
       // Comprimir imagen a máximo 1024x1024 con calidad del 70%
-      const compressedData = await compressImage(file, 1024, 1024, 0.7);
+      const compressedData = await compressImage(file);
       setNewPostImage(compressedData);
     } catch (err: any) {
       setErrorMsg(err.message || "Error al procesar la imagen.");
@@ -221,6 +308,34 @@ export default function InicioPage() {
       fileInputRef.current.value = "";
     }
   };
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+
+    setIsCompressing(true);
+    setErrorMsg("");
+    try {
+      const compressedData = await compressImage(file);
+      setNewPostImage(compressedData);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Error al procesar la imagen.");
+    } finally {
+      setIsCompressing(false);
+    }
+  }, []);
 
   // Crear una nueva publicación
   const handleCreatePost = async (e: React.FormEvent) => {
@@ -327,12 +442,27 @@ export default function InicioPage() {
                   />
                 </div>
                 <div className="flex-1 space-y-3">
-                  <textarea
-                    placeholder="¿Qué quieres compartir hoy?"
-                    value={newPostText}
-                    onChange={(e) => setNewPostText(e.target.value)}
-                    className="w-full bg-transparent border-0 resize-none text-sm focus:outline-none min-h-[70px] text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
-                  />
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`relative rounded-xl transition-colors ${isDragOver ? "ring-2 ring-amber-500 bg-amber-500/5" : ""}`}
+                  >
+                    <textarea
+                      placeholder="¿Qué quieres compartir hoy?"
+                      value={newPostText}
+                      onChange={(e) => setNewPostText(e.target.value)}
+                      className="w-full bg-transparent border-0 resize-none text-sm focus:outline-none min-h-[70px] text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500"
+                    />
+                    {isDragOver && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="flex items-center gap-2 text-amber-500 text-xs font-medium">
+                          <ImageIcon className="h-4 w-4" />
+                          <span>Soltar imagen aquí</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Vista previa de imagen comprimida */}
                   {newPostImage && (
@@ -346,9 +476,6 @@ export default function InicioPage() {
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
-                      <div className="absolute bottom-1 right-1 bg-slate-900/70 text-[9px] text-slate-200 px-1.5 py-0.5 rounded font-mono">
-                        Comprimida
-                      </div>
                     </div>
                   )}
 
@@ -430,7 +557,7 @@ export default function InicioPage() {
 
                   {currentUser && (currentUser.role === "admin" || currentUser.role === "docente" || post.author === currentUser.name) && (
                     <button
-                      onClick={() => handleDeletePost(post.id)}
+                      onClick={() => setDeleteConfirmId(post.id)}
                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                       title="Eliminar publicación"
                     >
@@ -445,7 +572,7 @@ export default function InicioPage() {
 
                 {post.image && (
                   <div 
-                    onClick={() => setZoomedImage(post.image || null)}
+                    onClick={() => post.image && openZoom(post.image)}
                     className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800 max-h-[400px] bg-slate-50 dark:bg-slate-950 flex justify-center cursor-zoom-in hover:opacity-95 transition-opacity"
                   >
                     <img src={post.image} alt="Publicación" className="max-h-[400px] w-auto object-contain rounded-lg" />
@@ -471,25 +598,82 @@ export default function InicioPage() {
         </div>
       </div>
 
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setDeleteConfirmId(null)}
+          />
+          <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden z-10 transition-all transform scale-100 flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 bg-slate-50 dark:bg-slate-950/40">
+              <div className="h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-100">
+                  Eliminar publicación
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Esta acción no se puede deshacer
+                </p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-xs text-slate-700 dark:text-slate-400 leading-relaxed">
+                ¿Estás seguro de que deseas eliminar esta publicación de la comunidad?
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3 bg-slate-50 dark:bg-slate-950/40">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-250 dark:border-slate-800 hover:bg-slate-500 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  handleDeletePost(deleteConfirmId);
+                  setDeleteConfirmId(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-400 text-white transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lightbox para agrandar imágenes */}
       {zoomedImage && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 transition-all duration-300 cursor-zoom-out"
-          onClick={() => setZoomedImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 transition-all duration-300"
+          style={{ cursor: isDragging ? "grabbing" : "grab" }}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setZoomedImage(null);
+              setImageScale(1);
+              setImageOffset({ x: 0, y: 0 });
+            }
+          }}
         >
           <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
-            <button
-              onClick={() => setZoomedImage(null)}
-              className="absolute -top-12 right-0 p-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-full transition-colors cursor-pointer"
-              title="Cerrar"
-            >
-              <X className="h-6 w-6" />
-            </button>
             <img 
               src={zoomedImage} 
               alt="Imagen ampliada" 
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-800 cursor-default"
-              onClick={(e) => e.stopPropagation()} // Evita que se cierre al hacer clic en la imagen
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-800 select-none"
+              style={{
+                transform: `scale(${imageScale}) translate(${imageOffset.x / imageScale}px, ${imageOffset.y / imageScale}px)`,
+                transition: isDragging ? "none" : "transform 0.15s ease-out"
+              }}
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
             />
           </div>
         </div>

@@ -33,21 +33,6 @@ const getTypeColorClass = (type?: string) =>
 const tagClass =
   "px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-500 text-slate-650 dark:text-slate-200";
 
-// Aplica el orden guardado por el admin (drag & drop) a la lista
-const applyStoredOrder = (list: Resource[]): Resource[] => {
-  try {
-    const storedOrder: number[] = JSON.parse(localStorage.getItem("labsy_resources_order") || "[]");
-    if (!Array.isArray(storedOrder) || storedOrder.length === 0) return list;
-    return [...list].sort((a, b) => {
-      const ia = storedOrder.indexOf(a.id);
-      const ib = storedOrder.indexOf(b.id);
-      return (ia === -1 ? Number.MAX_SAFE_INTEGER : ia) - (ib === -1 ? Number.MAX_SAFE_INTEGER : ib);
-    });
-  } catch {
-    return list;
-  }
-};
-
 export default function MaterialPage() {
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -67,11 +52,8 @@ export default function MaterialPage() {
   const [editSemester, setEditSemester] = useState("Ciclo 1");
   const [editAuthor, setEditAuthor] = useState("");
   const [editUrl, setEditUrl] = useState("");
-
-  // Drag & drop (solo admin)
-  const isAdmin = currentUser?.role === "admin";
-  const [dragId, setDragId] = useState<number | null>(null);
-  const [dragOverId, setDragOverId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
 
   const supabase = getSupabaseBrowserClient();
 
@@ -89,7 +71,7 @@ export default function MaterialPage() {
     const storedResources = localStorage.getItem("labsy_resources");
     if (storedResources) {
       try {
-        setResources(applyStoredOrder(JSON.parse(storedResources)));
+        setResources(JSON.parse(storedResources));
       } catch (e) {
         setResources(INITIAL_RESOURCES);
       }
@@ -106,7 +88,7 @@ export default function MaterialPage() {
         .order("id", { ascending: false });
       
       if (!error && data) {
-        setResources(applyStoredOrder(data));
+        setResources(data);
         localStorage.setItem("labsy_resources", JSON.stringify(data));
       }
     };
@@ -226,35 +208,6 @@ export default function MaterialPage() {
 
   const searchQuery = resourceSearch.toLowerCase().trim();
 
-  const handleDragStart = useCallback((id: number) => (e: React.DragEvent) => {
-    setDragId(id);
-    e.dataTransfer.effectAllowed = "move";
-  }, []);
-
-  const handleDragEnterItem = useCallback((id: number) => {
-    setDragOverId(id);
-  }, []);
-
-  const handleDropItem = useCallback((overId: number) => (e: React.DragEvent) => {
-    e.preventDefault();
-    const currentDragId = dragId;
-    setDragId(null);
-    setDragOverId(null);
-    if (currentDragId === null || currentDragId === overId) return;
-
-    const from = resources.findIndex(r => r.id === currentDragId);
-    const to = resources.findIndex(r => r.id === overId);
-    if (from === -1 || to === -1) return;
-
-    const next = [...resources];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-
-    setResources(next);
-    localStorage.setItem("labsy_resources", JSON.stringify(next));
-    localStorage.setItem("labsy_resources_order", JSON.stringify(next.map(r => r.id)));
-  }, [dragId, resources]);
-
   const filteredResources = useMemo(() => resources.filter(res =>
     res.name.toLowerCase().includes(searchQuery) ||
     res.course.toLowerCase().includes(searchQuery) ||
@@ -269,18 +222,10 @@ export default function MaterialPage() {
               filteredResources.map((res) => (
                 <div
                   key={res.id}
-                  draggable={isAdmin && editingResourceId !== res.id}
-                  onDragStart={isAdmin ? handleDragStart(res.id) : undefined}
-                  onDragEnter={() => { if (isAdmin) handleDragEnterItem(res.id); }}
-                  onDragOver={(e) => { if (isAdmin) e.preventDefault(); }}
-                  onDrop={isAdmin ? handleDropItem(res.id) : undefined}
-                  onDragEnd={() => { setDragId(null); setDragOverId(null); }}
                   onClick={res.url && editingResourceId !== res.id ? () => window.open(res.url, "_blank") : undefined}
                   className={`p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/5 transition-colors ${
                     res.url && editingResourceId !== res.id ? "cursor-pointer" : ""
-                  } ${isAdmin && editingResourceId !== res.id ? "cursor-move" : ""} ${
-                    dragId === res.id ? "opacity-40" : ""
-                  } ${dragOverId === res.id && dragId !== null && dragId !== res.id ? "ring-1 ring-inset ring-amber-500" : ""}`}
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="flex flex-col items-center gap-1 shrink-0 w-14">
@@ -412,7 +357,10 @@ export default function MaterialPage() {
                               <Pencil className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => handleDeleteResource(res.id)}
+                              onClick={() => {
+                                setDeleteConfirmId(res.id);
+                                setDeleteConfirmName(res.name);
+                              }}
                               className="p-2 text-slate-450 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
                               title="Eliminar recurso"
                             >
@@ -431,7 +379,7 @@ export default function MaterialPage() {
               </div>
             )}
           </>
-  ), [filteredResources, currentUser, editingResourceId, editName, editCourse, editAuthor, editSemester, editType, editUrl, handleSaveEdit, handleStartEdit, handleDeleteResource, isAdmin, dragId, dragOverId, handleDragStart, handleDragEnterItem, handleDropItem]);
+  ), [filteredResources, currentUser, editingResourceId, editName, editCourse, editAuthor, editSemester, editType, editUrl, handleSaveEdit, handleStartEdit]);
 
 return (
     <DashboardLayout>
@@ -597,6 +545,60 @@ return (
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {deleteConfirmId !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+              onClick={() => {
+                setDeleteConfirmId(null);
+                setDeleteConfirmName("");
+              }}
+            />
+            <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden z-10 transition-all transform scale-100 flex flex-col">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 bg-slate-50 dark:bg-slate-950/40">
+                <div className="h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                  <Trash2 className="h-5 w-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                    Eliminar material
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Esta acción no se puede deshacer
+                  </p>
+                </div>
+              </div>
+              <div className="px-6 py-5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  ¿Estás seguro de que deseas eliminar <span className="font-semibold text-slate-800 dark:text-slate-100">"{deleteConfirmName}"</span> de la lista de materiales?
+                </p>
+              </div>
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3 bg-slate-50 dark:bg-slate-950/40">
+                <button
+                  onClick={() => {
+                    setDeleteConfirmId(null);
+                    setDeleteConfirmName("");
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-slate-250 dark:border-slate-800 hover:bg-slate-500 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    handleDeleteResource(deleteConfirmId);
+                    setDeleteConfirmId(null);
+                    setDeleteConfirmName("");
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-400 text-white transition-colors"
+                >
+                  Eliminar
+                </button>
+              </div>
             </div>
           </div>
         )}
