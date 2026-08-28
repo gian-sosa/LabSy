@@ -197,7 +197,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div ref={headerRef} className="fixed top-0 left-0 right-0 z-30 flex flex-col">
         {/* Demo role switch bar */}
         {/* Oculte esta sección en producción */}
-        <div className={` border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
+        <div className={`hidden border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs transition-colors ${
           isDarkMode ? "bg-slate-900 border-slate-800" : "bg-amber-500/10 border-amber-500/20 text-slate-850"
         }`}>
         <div className="flex items-center gap-2">
