@@ -14,9 +14,11 @@ import {
   Sun,
   Moon,
   Menu,
-  X
+  X,
+  LayoutGrid
 } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import DashboardSkeleton from "./DashboardSkeleton";
 
 interface User {
   name: string;
@@ -40,11 +42,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setIsSidebarOpen(false);
   }, [pathname]);
 
-  // Sincroniza la clase dark con <html> para que las variantes dark: de Tailwind funcionen
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDarkMode);
-  }, [isDarkMode]);
-
   const headerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +50,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const storedTheme = localStorage.getItem("labsy_theme");
     if (storedTheme) {
       setIsDarkMode(storedTheme === "dark");
+    } else {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
     }
     
     const syncUser = async () => {
@@ -135,6 +134,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const toggleTheme = () => {
     const nextTheme = !isDarkMode;
     setIsDarkMode(nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme);
     localStorage.setItem("labsy_theme", nextTheme ? "dark" : "light");
   };
 
@@ -179,19 +179,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   if (!mounted || !currentUser) {
-    return null;
+    return <DashboardSkeleton />;
   }
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col relative transition-colors duration-300 ${
-      isDarkMode ? "dark bg-slate-950 text-slate-100" : "bg-slate-55 bg-slate-50 text-slate-900"
-    }`}>
+    <div className="min-h-screen font-sans flex flex-col relative transition-colors duration-300 bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {/* Background radial glow */}
-      <div className={`absolute top-0 left-0 w-full h-[350px] pointer-events-none ${
-        isDarkMode 
-          ? "bg-gradient-to-b from-amber-950/10 via-slate-950/0 to-transparent" 
-          : "bg-gradient-to-b from-amber-500/5 via-slate-55/0 to-transparent"
-      }`} />
+      <div className="absolute top-0 left-0 w-full h-[350px] pointer-events-none bg-gradient-to-b from-amber-500/5 via-slate-50/0 to-transparent dark:from-amber-950/10 dark:via-slate-950/0 dark:to-transparent" />
 
       {/* Cabecera Fija */}
       <div ref={headerRef} className="fixed top-0 left-0 right-0 z-30 flex flex-col">
@@ -380,6 +374,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="ml-auto inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
                 {/* animate-ping */}
               </Link>
+              <Link
+                href="/aplicaciones"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/aplicaciones"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-655 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Aplicaciones
+              </Link>
               {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
                 <Link
                   href="/inscritos"
@@ -462,6 +469,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="ml-auto inline-flex relative text-[10px] font-semibold text-black px-3 py-0.5 rounded-xl border border-emerald-600 bg-green-400 text-emerald-450">
                   On-line
                 </span>
+              </Link>
+              <Link
+                href="/aplicaciones"
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                  pathname === "/aplicaciones"
+                    ? "bg-amber-500 text-slate-950 font-bold"
+                    : isDarkMode
+                    ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    : "text-slate-655 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Aplicaciones
               </Link>
               {currentUser && (currentUser.role === "docente" || currentUser.role === "admin") && (
                 <Link

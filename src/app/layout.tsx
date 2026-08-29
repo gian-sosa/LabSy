@@ -25,12 +25,35 @@ export default function RootLayout({
   return (
     <html
       lang="es-la"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{function patch(method){var original=console[method];console[method]=function(){for(var i=0;i<arguments.length;i++){if(typeof arguments[i]==="string"&&arguments[i].indexOf("[HMR]")===0)return;}return original.apply(console,arguments);};}patch("log");patch("info");patch("debug");}catch(e){}})();`,
+            __html: `(function(){
+              try {
+                var theme = localStorage.getItem('labsy_theme');
+                var isDark = theme !== null ? theme === 'dark' : true;
+                if (isDark) {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+              } catch (e) {}
+              try {
+                function patch(method){
+                  var original=console[method];
+                  console[method]=function(){
+                    for(var i=0;i<arguments.length;i++){
+                      if(typeof arguments[i]==="string"&&arguments[i].indexOf("[HMR]")===0)return;
+                    }
+                    return original.apply(console,arguments);
+                  };
+                }
+                patch("log");patch("info");patch("debug");
+              } catch(e){}
+            })();`,
           }}
         />
       </head>
